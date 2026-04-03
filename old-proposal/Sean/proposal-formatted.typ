@@ -55,3 +55,8 @@ We define three key milestones. Primary milestones (M1, M2) are sequential. Cruc
 - *W12*: Introduce the Information Flow Type System and `CMOV` semantics.
 - *W13: [Milestone 3]* Implement the type-directed optimizer (Objective 2), or dedicate this week strictly to resolving edge cases in the primary DSE proofs and polishing the codebase.
 - *W14*: Draft, review, and submit the final academic report.
+
+
+== References 
+
+#bibliography("../../res/ref.bib", full: true)
