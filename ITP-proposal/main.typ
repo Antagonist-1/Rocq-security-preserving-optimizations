@@ -14,9 +14,9 @@
 
 // Title
 #align(center)[
-  #text(size: 18pt, weight: "bold", tracking: 0.05em)[TITLé]
+  #text(size: 18pt, weight: "bold", tracking: 0.05em)[Security-Preserving Optimizations]
   #v(-1em)
-  #text(size: 14pt, weight: "bold", style: "italic")[Verifying security of optimizations in a simple language]
+  #text(size: 14pt, weight: "bold", style: "italic")[Formal verification of secure compiler passes in a simple language]
   #v(2.5em)
 ]
 #show: word-count
@@ -45,9 +45,9 @@ While functionally redundant, this `memset` is necessary from a security perspec
 = Proposal
 We focus on preserving two distinct security properties. To prove them we will extend the `IMP`  language from the _Software Foundations_ course @SoftwareFoundations with custom optimizations phases, formally verifying they do not add vulnerabilities to the program.
 
-*Security properties*, inspired by the cryptography-centered language *Jasmin*. @almeida2017 @olmos2025
+*Security properties*, inspired by the cryptography-centered language *Jasmin*: @almeida2017 @olmos2025
 
-- *Safe Memory Clearing:* Address the DSE issue illustrated above by ensuring the optimizer cannot erase deliberate clears.
+- *Safe Memory Clearing:* Address the _Dead Store Elimination_ issue illustrated above by ensuring the optimizer cannot erase deliberate clears.
 
   _All sensitive assignments from the original program remain in the optimized program_ 
 
@@ -57,12 +57,12 @@ We focus on preserving two distinct security properties. To prove them we will e
 // The second one tackles constant time programming, preventing side channel timing attacks.
 ]
 
-  _The execution trace of a programs *P* is identical under all possible inputs of secret variables._ 
+  _The execution trace of a program *P* is identical under all possible inputs of secret variables._ 
 
 #pagebreak()
 *AST Optimizations*
 
-Apart from implementing a modified version of DSE, we will also add other, more standards optimizations, such constant folding, constant evaluation, etc.
+Apart from implementing a modified version of DSE, we will also add other, more standards optimizations, such constant folding, constant evaluation, etc, and prove that the security properties still holds under them
 
 One possible challenge we expect to face is the propagation of use of secrets, that we need to follow in order to determine if the program branches depending on a secret.
 
@@ -72,13 +72,13 @@ If time allows, we will focus on new possible optimizations, such as _Constant S
 
 Since the `IMP` language is already defined in depth @SoftwareFoundations, we already have a solid starting point. Here is our expected timeline, with parallelizable points
 
-- W8: define and formalize the language (extend `IMP`s arith and command type as needed)
+- Week 8: define and formalize the language (extend `IMP`s `arith` and `command` type as needed)
 
-- W9-10: formalize optimizations and security properties _(in parallel)_
+- Weeks 9-10: formalize optimizations and security properties _(in parallel)_
 
-- W11-12: prove correctness and security of transformations _(in parallel)_
+- Weeks 11-12: prove correctness and security of transformations _(in parallel)_
 
-- W13-14: finalization, cleaning the code, preparing presentation, writing final report
+- Weeks 13-14: finalization, clean the code, prepare the presentation and the final report
 
 #bibliography("./ref.bib", full: false)
 
