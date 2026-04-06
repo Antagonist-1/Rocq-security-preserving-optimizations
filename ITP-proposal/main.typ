@@ -22,7 +22,7 @@
 #show: word-count
 = Introduction / problem statement
 
-Standard optimization tools assume functional correctness is the only required property. However, this approach can introduce security vulnerabilities. For example, most optimizers would eliminate a `memset` on a region not accessed later. @yang2017
+Standard optimization tools assume functional correctness is the only required property. However, this approach can introduce security vulnerabilities. For instance, most optimizers would eliminate a `memset` on a region not accessed later, illustrated in this example~@yang2017:
 
 #sourcecode(
   numbers-start: 1,
@@ -38,16 +38,15 @@ Standard optimization tools assume functional correctness is the only required p
 
 While functionally redundant, this `memset` is necessary from a security perspective, to explicitly erase the value from memory and prevent memory-dump attacks.
 
-// TOoOD: Cite the correc tsource
-*This project intends to explore this issue commonly known as the _Correctness-Security Gap_ * @xu2023 by formally verifying that specific optimization passes on a toy language maintain designated security properties. 
+*This project intends to explore this issue commonly known as the _Correctness-Security Gap_  @xu2023*  by formally verifying that specific optimization passes on a toy language maintain designated security properties. 
 
 
 = Proposal
 We focus on preserving two distinct security properties. To prove them we will extend the `IMP`  language from the _Software Foundations_ course @SoftwareFoundations with custom optimizations phases, formally verifying they do not add vulnerabilities to the program.
 
-*Security properties*, inspired by the cryptography-centered language *Jasmin*: @almeida2017 @olmos2025
+*Security properties*, inspired by the cryptography-centered language *Jasmin*~@almeida2017 @olmos2025:
 
-- *Safe Memory Clearing:* Address the _Dead Store Elimination_ issue illustrated above by ensuring the optimizer cannot erase deliberate clears.
+- *Safe Memory Clearing:* Address the _Dead Store Elimination (DSE)_ issue illustrated above by ensuring the optimizer cannot erase deliberate clears.
 
   _All sensitive assignments from the original program remain in the optimized program_ 
 
@@ -62,24 +61,22 @@ We focus on preserving two distinct security properties. To prove them we will e
 #pagebreak()
 *AST Optimizations*
 
-Apart from implementing a modified version of DSE, we will also add other, more standards optimizations, such constant folding, constant evaluation, etc, and prove that the security properties still holds under them
+Apart from implementing a modified version of DSE, we will also include standard optimizations such as constant folding and constant evaluation among others, and prove that the security properties are preserved under these transformations.
 
-One possible challenge we expect to face is the propagation of use of secrets, that we need to follow in order to determine if the program branches depending on a secret.
+One primary challenge will be tracking security labels propagation throughout the AST, which is essential to ensure that the program control flow remains independent of secret information.
 
-If time allows, we will focus on new possible optimizations, such as _Constant Subexpression Elimination_. Another possible attack to study is a _side channel timing attack caused by memory access_.
+If time allows, we will explore further optimizations, such as _Common Subexpression Elimination_. Another potential area of research is the one of _Timing Side-Channel Attacks_, which exploit memory access latencies.
 
-= Timeline and responsibilities
+= Timeline
 
 Since the `IMP` language is already defined in depth @SoftwareFoundations, we already have a solid starting point. Here is our expected timeline, with parallelizable points
 
-- Week 8: define and formalize the language (extend `IMP`s `arith` and `command` type as needed)
+- Week 8: Define and formalize the language (extend `IMP`s `arith` and `command` type as needed)
 
-- Weeks 9-10: formalize optimizations and security properties _(in parallel)_
+- Weeks 9–10: Formalize optimizations and security properties _(in parallel)_
 
-- Weeks 11-12: prove correctness and security of transformations _(in parallel)_
+- Weeks 11–12: Prove correctness and security of transformations _(in parallel)_
 
-- Weeks 13-14: finalization, clean the code, prepare the presentation and the final report
+- Weeks 13–14: Finalization, clean the code, prepare the presentation and the final report
 
 #bibliography("./ref.bib", full: false)
-
-#total-words words
