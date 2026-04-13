@@ -3,6 +3,7 @@
 
 From Stdlib Require Export NArith Arith.
 From Stdlib Require Export Program.Equality.
+Require Import Map.
 From Stdlib Require Import String.
 
 Arguments N.add : simpl nomatch.
@@ -180,8 +181,29 @@ Definition interp_binop (b: BinopName) (n1 n2: nat) :=
       -----------------------------
           ⟦Binop b e1 e2⟧ᵥ = a
 *)
+ 
+Inductive trace_event := 
+| Branch: bool -> trace_event
+| MemWrite: var -> trace_event.
 
 Definition valuation := fmap var nat.
+
+Definition secrets := fmap var unit. (*store secrets in a set*)
+Definition is_secret (s: secrets) (x: var) := s $? x = Some tt.
+
+(*2 programs agree on public variables, with potentially different secrets
+necessary to check*)
+Definition agree_on_public (s: secrets) (v1 v2 : valuation) : Prop :=
+  forall x, not (is_secret s x) -> v1 $? x = v2 $? x.
+
+(*we dont put secrets in context because they are static, not changing with the program*)
+Record context := {
+    val: valuation;
+    trace: list trace_event
+}.
+Print cons.
+
+Definition empty_context : context := {| val := $0; trace := nil |}.
 
 Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
   match e with
@@ -204,8 +226,8 @@ Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
       ----------------------------------- EvalSequence
           (v, Sequence c1 c2) ↓ᵩ v''
 
-    Notice the subscript φ: this indicates that we have an environment of functions.
-    This environment of functions gives the body of each function, the names of its
+    Notice the subscript φ: this indicates that we have an function_env of functions.
+    This function_env of functions gives the body of each function, the names of its
     arguments, and the name of its return value.  For example, to say that the
     function "collatz" has body [CollatzBody], takes arguments "start" and "flight",
     and writes its result to "out", we would write::
@@ -232,7 +254,7 @@ Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
    - This rule passes arguments by value: that is, the function's arguments are
      evaluated in the current valuation [v]: [⟦e⟧ᵥ = a].
    
-   - The function environment [phi] (represented as φ above) maps function names
+   - The function function_env [phi] (represented as φ above) maps function names
      (strings) to function signatures and function bodies:
      [(f ↦ ((x1, x2), y, body)) ∈ φ].
    
@@ -244,40 +266,42 @@ Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
    
    Here is how it looks in Rocq: *)
 
-Definition environment := fmap string ((var * var) * var * cmd).
+Definition function_env := fmap string ((var * var) * var * cmd).
 
-Inductive eval (phi: environment): valuation -> cmd -> valuation -> Prop :=
-  | EvalSkip: forall v,
-      eval phi v Skip v
-  | EvalAssign: forall v x e a,
-      interp_arith e v = a ->
-      eval phi v (Assign x e) (v $+ (x, a))
-  | EvalAssignCall: forall x f e1 e2 x1 x2 y body a1 a2 a v v',
+
+Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
+  | EvalSkip: forall ctx,
+      eval phi ctx Skip ctx
+  | EvalAssign: forall ctx x e a,
+      interp_arith e ctx.(val) = a ->
+      eval phi ctx (Assign x e) {|val := (ctx.(val) $+ (x, a)); trace := ctx.(trace)|}
+  | EvalAssignCall: forall x f e1 e2 x1 x2 y body a1 a2 a ctx ctx',
     phi $? f = Some ((x1, x2), y, body) ->
-    interp_arith e1 v = a1 ->
-    interp_arith e2 v = a2 ->
-    eval phi ($0 $+ (x1, a1) $+ (x2, a2)) body v' ->
-    v' $? y = Some a ->
-    eval phi v (AssignCall x f e1 e2) (v $+ (x, a))
-  | EvalSequence: forall v c1 v1 c2 v2,
-      eval phi v c1 v1 ->
-      eval phi v1 c2 v2 ->
-      eval phi v (Sequence c1 c2) v2
-  | EvalIfTrue: forall v e thn els v' c,
-      interp_arith e v = c ->
+    interp_arith e1 ctx.(val) = a1 ->
+    interp_arith e2 ctx.(val) = a2 ->
+    (*reset the environmnet, but keep the trace. we could also simply append it after*)
+    eval phi {|val:=($0 $+ (x1, a1) $+ (x2, a2)); trace:=ctx.(trace)|} body ctx' ->
+    ctx'.(val) $? y = Some a ->
+    eval phi ctx (AssignCall x f e1 e2) {|val:=(ctx.(val) $+ (x, a)); trace:=ctx'.(trace)|}
+  | EvalSequence: forall ctx c1 ctx1 c2 ctx2,
+      eval phi ctx c1 ctx1 ->
+      eval phi ctx1 c2 ctx2 ->
+      eval phi ctx (Sequence c1 c2) ctx2
+  | EvalIfTrue: forall ctx e thn els ctx' c,
+      interp_arith e ctx.(val) = c ->
       c <> 0 ->
-      eval phi v thn v' ->
-      eval phi v (If e thn els) v'
-  | EvalIfFalse: forall v e thn els v',
-      interp_arith e v = 0 ->
-      eval phi v els v' ->
-      eval phi v (If e thn els) v'
-  | EvalWhileTrue: forall v e body v' v'' c,
-      interp_arith e v = c ->
+      eval phi ctx thn ctx' ->
+      eval phi ctx (If e thn els) {|val := ctx'.(val); trace:=(cons (Branch true) ctx'.(trace))|}
+  | EvalIfFalse: forall ctx e thn els ctx',
+      interp_arith e ctx.(val) = 0 ->
+      eval phi ctx els ctx' ->
+      eval phi ctx (If e thn els) {|val:=ctx'.(val); trace:=(cons (Branch false) ctx'.(trace))|}
+  | EvalWhileTrue: forall ctx e body ctx' ctx'' c,
+      interp_arith e ctx.(val) = c ->
       c <> 0 ->
-      eval phi v body v' ->
-      eval phi v' (While e body) v'' ->
-      eval phi v (While e body) v''
-  | EvalWhileFalse: forall v e body,
-      interp_arith e v = 0 ->
-      eval phi v (While e body) v.
+      eval phi ctx body ctx' ->
+      eval phi ctx' (While e body) ctx'' ->
+      eval phi ctx (While e body) {|val := ctx''.(val); trace:=(cons (Branch true) ctx''.(trace))|}
+  | EvalWhileFalse: forall ctx e body,
+      interp_arith e ctx.(val) = 0 ->
+      eval phi ctx (While e body) {|val := ctx.(val); trace:=(cons (Branch false) ctx.(trace))|}.

@@ -1,2 +1,7 @@
 res/.DS_Store
 .DS_Store
+**.aux
+**.glob
+**.vo
+**.vok
+**.vos
