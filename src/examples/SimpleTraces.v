@@ -1,29 +1,47 @@
 Require Import Map.
 Require Import Language.Main.
-Require Import Lia.
+Require Import examples.Programs.
+From Stdlib Require Import Lia.
 
-  Definition simple_assign := Assign "x" (Const 5).
+Ltac crush_eval_step :=
+  cbn [empty_context interp_arith interp_binop] in *;
+  autorewrite with core in *;
+  lazymatch goal with
+  | |- _ <> 0 => discriminate || congruence || lia
+  | |- _ = _ => cbn; autorewrite with core; reflexivity
+  | |- exists _ : valuation, _ => eexists
+  | |- eval _ _ Skip _ => econstructor
+  | |- eval _ _ (Assign _ _) _ => econstructor; cbn; autorewrite with core; reflexivity
+  | |- eval _ _ (AssignCall _ _ _ _) _ => econstructor; try reflexivity
+  end.
+
+Ltac crush_eval :=
+  repeat (crush_eval_step; cbn [empty_context interp_arith interp_binop] in *; autorewrite with core in *);
+  try lia;
+  try reflexivity.
+
+Print simple_assign.
 
   Example simple_assign_empty_trace :
     eval $0
       empty_context
       simple_assign
       {| val := $0 $+ ("x", 5); trace := nil |}.
-  Proof. econstructor. reflexivity. Qed.
+  Proof. unfold simple_assign. crush_eval. Qed.
 
-  Definition two_assigns := Sequence (Assign "x" (Const 5)) (Assign "y" (Const 10)).
+  Print two_assigns.
+
   Example two_assigns_empty_trace :
     eval $0
       empty_context
       two_assigns
       {| val := $0 $+ ("x", 5) $+ ("y", 10); trace := nil |}.
   Proof.
-    unfold two_assigns. econstructor.
-    - apply EvalAssign; unfold interp_arith; reflexivity.
-    - apply EvalAssign; unfold interp_arith; reflexivity.
+    unfold two_assigns. econstructor; crush_eval.
   Qed.
 
-  Definition simple_if := If (Const 1) (Assign "x" (Const 42)) (Assign "x" (Const 0)).
+  Print simple_if.
+
   Example simple_if_true_branch :
     eval $0
       empty_context
@@ -31,35 +49,35 @@ Require Import Lia.
       {| val := $0 $+ ("x", 42); trace := Branch true :: nil |}.
   Proof.
     unfold simple_if.
-    eapply EvalIfTrue with (ctx' := {| val := $0 $+ ("x", 42); trace := nil |}).
-    - (* Prove: interp_arith (Const 1) $0 = 1 *)
-      unfold interp_arith. reflexivity.
-    - (* Prove: 1 <> 0 *) lia.
-    - (* Prove the assignment *)
-      apply EvalAssign.
-      unfold interp_arith.
-      reflexivity.
+    eapply EvalIfTrue with (ctx' := {| val := $0 $+ ("x", 42); trace := nil |});
+      crush_eval.
   Qed.
 
-  Definition simple_sequence :=
-    Sequence
-    (If (Const 1) (Assign "x" (Const 0)) (Assign "x" (Const 0)))
-    (If (Const 0) (Assign "y" (Const 0)) (Assign "y" (Const 0))).
+  Print simple_sequence.
 
   Example simple_sequence_true_false_branch :
     eval $0
       empty_context
       simple_sequence
-      {| val := $0 $+ ("x", 0) $+ ("y", 0); trace := Branch true :: Branch false :: nil |}.
+      {| val := $0 $+ ("x", 0) $+ ("y", 0); trace := Branch false :: Branch true :: nil |}.
   Proof.
-  Admitted.
+    unfold simple_sequence.
+    eapply EvalSequence with
+      (ctx1 := {| val := $0 $+ ("x", 0); trace := Branch true :: nil |}).
+    - eapply (@EvalIfTrue $0 empty_context 1
+          (Assign "x" (Const 0))
+          (Assign "x" (Const 0))
+          {| val := $0 $+ ("x", 0); trace := nil |} 1); crush_eval.
+    - eapply (@EvalIfFalse $0
+          {| val := $0 $+ ("x", 0); trace := Branch true :: nil |}
+          0
+          (Assign "y" (Const 0))
+          (Assign "y" (Const 0))
+          {| val := ($0 $+ ("x", 0)) $+ ("y", 0); trace := Branch true :: nil |});
+      crush_eval.
+  Qed.
 
-  Definition nested_if :=
-    If (Const 1)
-      (If (Const 0)
-        (Assign "x" (Const 0))
-        (Assign "x" (Const 0)))
-      (Assign "x" (Const 0)).
+  Print nested_if.
 
   Example nested_if_true_false_branch :
     eval $0
@@ -67,19 +85,22 @@ Require Import Lia.
       nested_if
       {| val := $0 $+ ("x", 0); trace := Branch true :: Branch false :: nil |}.
   Proof.
-  Admitted.
+    unfold nested_if.
+    eapply (@EvalIfTrue $0 empty_context 1
+          (If (Const 0) (Assign "x" (Const 0)) (Assign "x" (Const 0)))
+          (Assign "x" (Const 0))
+          {| val := $0 $+ ("x", 0); trace := Branch false :: nil |} 1).
+    - crush_eval.
+    - crush_eval.
+    - eapply (@EvalIfFalse $0 empty_context 0
+          (Assign "x" (Const 0))
+          (Assign "x" (Const 0))
+          {| val := $0 $+ ("x", 0); trace := nil |});
+      crush_eval.
+  Qed.
 
   (* Final Boss: Example from Lab05 *)
-  Definition the_answer_is_42 :=
-      Sequence
-        (Assign "x" (Var "oops"))
-        (Sequence
-          (If (Var "x")
-              (Assign "tmp" (Binop Plus (Var "x") (Var "x")))
-              (Assign "tmp" (Const 1)))
-          (If (Var "tmp")
-              (Assign "answer" (Const 42))
-              (Assign "answer" (Const 24)))).
+  Print the_answer_is_42.
   (* The trace will depend on the initial valuation, in particular on the value
     of "oops".
     For example, with oops = 0 the trace will be [Branch true; Branch false],
@@ -121,7 +142,25 @@ Require Import Lia.
       {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1) $+ ("answer", 42);
          trace := Branch true :: Branch false :: nil |}.
   Proof.
-  Admitted.
+    eapply EvalSequence with
+      (ctx1 := {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1);
+                  trace := Branch false :: nil |}).
+    - eapply (@EvalIfFalse $0
+          {| val := $0 $+ ("oops", 0) $+ ("x", 0); trace := nil |}
+          (Var "x")
+          (Assign "tmp" (Binop Plus (Var "x") (Var "x")))
+          (Assign "tmp" (Const 1))
+          {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1); trace := nil |});
+      crush_eval.
+    - eapply (@EvalIfTrue $0
+          {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1);
+             trace := Branch false :: nil |}
+          (Var "tmp")
+          (Assign "answer" (Const 42))
+          (Assign "answer" (Const 24))
+          {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1) $+ ("answer", 42);
+             trace := Branch false :: nil |} 1); crush_eval.
+  Qed.
 
   Example trace_with_zero :
     eval $0
@@ -129,7 +168,12 @@ Require Import Lia.
       the_answer_is_42
       {| val := oopsZeroValuation $+ ("x", 0) $+ ("tmp", 1) $+ ("answer", 42); trace := traceWithZero |}.
   Proof.
-  Admitted.
+    unfold the_answer_is_42, oopsZeroValuation, traceWithZero.
+    eapply EvalSequence with
+      (ctx1 := {| val := $0 $+ ("oops", 0) $+ ("x", 0); trace := nil |}).
+    - crush_eval.
+    - apply trace_with_zero_inside.
+  Qed.
 
   Example trace_with_nonzero_inside :
     eval $0
@@ -144,7 +188,27 @@ Require Import Lia.
       {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2) $+ ("answer", 42);
          trace := Branch true :: Branch true :: nil |}.
   Proof.
-  Admitted.
+    eapply EvalSequence with
+      (ctx1 := {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2);
+                  trace := Branch true :: nil |}).
+    - eapply (@EvalIfTrue $0
+          {| val := $0 $+ ("oops", 1) $+ ("x", 1); trace := nil |}
+          (Var "x")
+          (Assign "tmp" (Binop Plus (Var "x") (Var "x")))
+          (Assign "tmp" (Const 1))
+          {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2); trace := nil |} 1).
+      + crush_eval.
+      + crush_eval.
+      + apply EvalAssign. cbn. autorewrite with core. reflexivity.
+    - eapply (@EvalIfTrue $0
+          {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2);
+             trace := Branch true :: nil |}
+          (Var "tmp")
+          (Assign "answer" (Const 42))
+          (Assign "answer" (Const 24))
+          {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2) $+ ("answer", 42);
+             trace := Branch true :: nil |} 2); crush_eval.
+  Qed.
 
   Example trace_with_nonzero :
     eval $0
@@ -152,4 +216,9 @@ Require Import Lia.
       the_answer_is_42
       {| val := oopsNonZeroValuation $+ ("x", 1) $+ ("tmp", 2) $+ ("answer", 42); trace := traceWithNonZero |}.
   Proof.
-  Admitted.
+    unfold the_answer_is_42, oopsNonZeroValuation, traceWithNonZero.
+    eapply EvalSequence with
+      (ctx1 := {| val := $0 $+ ("oops", 1) $+ ("x", 1); trace := nil |}).
+    - crush_eval.
+    - apply trace_with_nonzero_inside.
+  Qed.
