@@ -54,3 +54,39 @@ Notation Fact_env :=
     $+ ("fact", Fact_signature)
     $+ ("fact_r", FactRec_signature)
     $+ ("fact_tr", FactTailRec_signature)).
+
+Definition simple_assign :=
+  Assign "x" (Const 5).
+
+Definition two_assigns :=
+  Sequence (Assign "x" (Const 5)) (Assign "y" (Const 10)).
+
+Definition simple_if :=
+  If (Const 1) (Assign "x" (Const 42)) (Assign "x" (Const 0)).
+
+Definition simple_sequence :=
+  Sequence
+    (If (Const 1) (Assign "x" (Const 0)) (Assign "x" (Const 0)))
+    (If (Const 0) (Assign "y" (Const 0)) (Assign "y" (Const 0))).
+
+Definition nested_if :=
+  If (Const 1)
+    (If (Const 0)
+      (Assign "x" (Const 0))
+      (Assign "x" (Const 0)))
+    (Assign "x" (Const 0)).
+
+Definition simple_while :=
+  While (Var "x")
+    (Assign "x" (Const 0)).
+
+Definition the_answer_is_42 :=
+  Sequence
+    (Assign "x" (Var "oops"))
+    (Sequence
+      (If (Var "x")
+          (Assign "tmp" (Binop Plus (Var "x") (Var "x")))
+          (Assign "tmp" (Const 1)))
+      (If (Var "tmp")
+          (Assign "answer" (Const 42))
+          (Assign "answer" (Const 24)))).
