@@ -1,5 +1,7 @@
 Require Import Map.
 Require Import Language.Syntax.
+From Stdlib Require Import List.
+Import ListNotations.
 
 (** ** Semantics *)
 
@@ -42,13 +44,12 @@ Inductive trace_event :=
 Definition valuation := fmap var nat.
 
 (*we dont put secrets in context because they are static, not changing with the program*)
-Record context := {
-    val: valuation;
-    trace: list trace_event
-}.
-Print cons.
+Definition context := (valuation * list trace_event)%type.
 
-Definition empty_context : context := {| val := $0; trace := nil |}.
+Definition val_of (ctx: context) := fst ctx.
+Definition trace_of (ctx: context) := snd ctx.
+
+Definition empty_context : context := ($0, nil).
 
 Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
   match e with
@@ -115,35 +116,35 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
   | EvalSkip: forall ctx,
       eval phi ctx Skip ctx
   | EvalAssign: forall ctx x e a,
-      interp_arith e ctx.(val) = a ->
-      eval phi ctx (Assign x e) {|val := (ctx.(val) $+ (x, a)); trace := ctx.(trace)|}
+      interp_arith e (val_of ctx) = a ->
+      eval phi ctx (Assign x e) ((val_of ctx) $+ (x, a), trace_of ctx)
   | EvalAssignCall: forall x f e1 e2 x1 x2 y body a1 a2 a ctx ctx',
     phi $? f = Some ((x1, x2), y, body) ->
-    interp_arith e1 ctx.(val) = a1 ->
-    interp_arith e2 ctx.(val) = a2 ->
+    interp_arith e1 (val_of ctx) = a1 ->
+    interp_arith e2 (val_of ctx) = a2 ->
     (*reset the environmnet, but keep the trace. we could also simply append it after*)
-    eval phi {|val:=($0 $+ (x1, a1) $+ (x2, a2)); trace:=ctx.(trace)|} body ctx' ->
-    ctx'.(val) $? y = Some a ->
-    eval phi ctx (AssignCall x f e1 e2) {|val:=(ctx.(val) $+ (x, a)); trace:=ctx'.(trace)|}
+    eval phi (($0 $+ (x1, a1) $+ (x2, a2)), trace_of ctx) body ctx' ->
+    val_of ctx' $? y = Some a ->
+    eval phi ctx (AssignCall x f e1 e2) ((val_of ctx) $+ (x, a), trace_of ctx')
   | EvalSequence: forall ctx c1 ctx1 c2 ctx2,
       eval phi ctx c1 ctx1 ->
       eval phi ctx1 c2 ctx2 ->
       eval phi ctx (Sequence c1 c2) ctx2
   | EvalIfTrue: forall ctx e thn els ctx' c,
-      interp_arith e ctx.(val) = c ->
+      interp_arith e (val_of ctx) = c ->
       c <> 0 ->
-      eval phi {| val := ctx.(val); trace := ctx.(trace) ++ (Branch true :: nil) |} thn ctx' ->
+      eval phi (val_of ctx, trace_of ctx ++ (Branch true :: nil)) thn ctx' ->
       eval phi ctx (If e thn els) ctx'
   | EvalIfFalse: forall ctx e thn els ctx',
-      interp_arith e ctx.(val) = 0 ->
-      eval phi {| val := ctx.(val); trace := ctx.(trace) ++ (Branch false :: nil) |} els ctx' ->
+      interp_arith e (val_of ctx) = 0 ->
+      eval phi (val_of ctx, trace_of ctx ++ (Branch false :: nil)) els ctx' ->
       eval phi ctx (If e thn els) ctx'
   | EvalWhileTrue: forall ctx e body ctx' ctx'' c,
-      interp_arith e ctx.(val) = c ->
+      interp_arith e (val_of ctx) = c ->
       c <> 0 ->
-      eval phi {| val := ctx.(val); trace := ctx.(trace) ++ (Branch true :: nil) |} body ctx' ->
+      eval phi (val_of ctx, trace_of ctx ++ (Branch true :: nil)) body ctx' ->
       eval phi ctx' (While e body) ctx'' ->
       eval phi ctx (While e body) ctx''
   | EvalWhileFalse: forall ctx e body,
-      interp_arith e ctx.(val) = 0 ->
-      eval phi ctx (While e body) {| val := ctx.(val); trace := ctx.(trace) ++ (Branch false :: nil) |}.
+      interp_arith e (val_of ctx) = 0 ->
+      eval phi ctx (While e body) (val_of ctx, trace_of ctx ++ (Branch false :: nil)).
