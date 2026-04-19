@@ -7,18 +7,17 @@ From Stdlib Require Import Lia.
 
 Hint Constructors eval : eval.
 
-Ltac crush_eval_step :=
-  let rec go :=
+Ltac crush_eval :=
+  let rec crush_eval_step :=
     cbn [empty_context interp_arith interp_binop] in *;
     autorewrite with core in *;
     lazymatch goal with
     | |- _ <> 0 => discriminate || congruence || lia
     | |- _ = _ => cbn; autorewrite with core; reflexivity
-    | |- exists _ : valuation, _ => eexists; go
-    | |- eval _ _ _ _ => econstructor; go
+    | |- exists _ : valuation, _ => eexists; crush_eval_step
+    | |- eval _ _ _ _ => econstructor; crush_eval_step
     end
-  in go.
-Ltac crush_eval := crush_eval_step.
+  in crush_eval_step.
 
 Print simple_assign.
 
