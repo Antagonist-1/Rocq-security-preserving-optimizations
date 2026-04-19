@@ -49,6 +49,16 @@ Definition context := (valuation * list trace_event)%type.
 Definition val_of (ctx: context) := fst ctx.
 Definition trace_of (ctx: context) := snd ctx.
 
+Notation "ev 't::' ctx" :=
+  (val_of ctx, ev :: trace_of ctx)
+  (at level 60).
+Notation "ctx 't++' ev" :=
+  (val_of ctx, trace_of ctx ++ (ev :: nil))
+  (at level 60).
+Notation "ctx 'v$+' ( k , v )" :=
+  (val_of ctx $+ (k, v), trace_of ctx)
+  (at level 50, left associativity).
+
 Definition empty_context : context := ($0, nil).
 
 Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
@@ -117,7 +127,7 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
       eval phi ctx Skip ctx
   | EvalAssign: forall ctx x e a,
       interp_arith e (val_of ctx) = a ->
-      eval phi ctx (Assign x e) ((val_of ctx) $+ (x, a), trace_of ctx)
+      eval phi ctx (Assign x e) (ctx v$+ (x, a))
   | EvalAssignCall: forall x f e1 e2 x1 x2 y body a1 a2 a ctx ctx',
     phi $? f = Some ((x1, x2), y, body) ->
     interp_arith e1 (val_of ctx) = a1 ->
@@ -125,7 +135,7 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
     (*reset the environmnet, but keep the trace. we could also simply append it after*)
     eval phi (($0 $+ (x1, a1) $+ (x2, a2)), trace_of ctx) body ctx' ->
     val_of ctx' $? y = Some a ->
-    eval phi ctx (AssignCall x f e1 e2) ((val_of ctx) $+ (x, a), trace_of ctx')
+    eval phi ctx (AssignCall x f e1 e2) (val_of ctx $+ (x, a), trace_of ctx')
   | EvalSequence: forall ctx c1 ctx1 c2 ctx2,
       eval phi ctx c1 ctx1 ->
       eval phi ctx1 c2 ctx2 ->
@@ -133,18 +143,18 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
   | EvalIfTrue: forall ctx e thn els ctx' c,
       interp_arith e (val_of ctx) = c ->
       c <> 0 ->
-      eval phi (val_of ctx, trace_of ctx ++ (Branch true :: nil)) thn ctx' ->
+      eval phi (ctx t++ Branch true) thn ctx' ->
       eval phi ctx (If e thn els) ctx'
   | EvalIfFalse: forall ctx e thn els ctx',
       interp_arith e (val_of ctx) = 0 ->
-      eval phi (val_of ctx, trace_of ctx ++ (Branch false :: nil)) els ctx' ->
+      eval phi (ctx t++ Branch false) els ctx' ->
       eval phi ctx (If e thn els) ctx'
   | EvalWhileTrue: forall ctx e body ctx' ctx'' c,
       interp_arith e (val_of ctx) = c ->
       c <> 0 ->
-      eval phi (val_of ctx, trace_of ctx ++ (Branch true :: nil)) body ctx' ->
+      eval phi (ctx t++ Branch true) body ctx' ->
       eval phi ctx' (While e body) ctx'' ->
       eval phi ctx (While e body) ctx''
   | EvalWhileFalse: forall ctx e body,
       interp_arith e (val_of ctx) = 0 ->
-      eval phi ctx (While e body) (val_of ctx, trace_of ctx ++ (Branch false :: nil)).
+      eval phi ctx (While e body) (ctx t++ Branch false).
