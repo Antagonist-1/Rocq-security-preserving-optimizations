@@ -10,15 +10,9 @@ Ltac crush_eval_step :=
   | |- _ <> 0 => discriminate || congruence || lia
   | |- _ = _ => cbn; autorewrite with core; reflexivity
   | |- exists _ : valuation, _ => eexists
-  | |- eval _ _ Skip _ => econstructor
-  | |- eval _ _ (Assign _ _) _ => econstructor; cbn; autorewrite with core; reflexivity
-  | |- eval _ _ (AssignCall _ _ _ _) _ => econstructor; try reflexivity
+  | |- eval _ _ (Assign _ _) _ => econstructor
   end.
-
-Ltac crush_eval :=
-  repeat (crush_eval_step; cbn [empty_context interp_arith interp_binop] in *; autorewrite with core in *);
-  try lia;
-  try reflexivity.
+Ltac crush_eval := repeat crush_eval_step.
 
 Print simple_assign.
 
