@@ -76,6 +76,10 @@ Definition nested_if :=
       (Assign "x" (Const 0)))
     (Assign "x" (Const 0)).
 
+Definition simple_while :=
+  While (Var "x")
+    (Assign "x" (Const 0)).
+
 Definition the_answer_is_42 :=
   Sequence
     (Assign "x" (Var "oops"))

@@ -99,6 +99,24 @@ Print simple_assign.
       crush_eval.
   Qed.
 
+  Print simple_while.
+
+  Example simple_while_true_false_branch :
+    eval $0
+      {| val := $0 $+ ("x", 1); trace := nil |}
+      simple_while
+      {| val := ($0 $+ ("x", 1)) $+ ("x", 0); trace := Branch true :: Branch false :: nil |}.
+  Proof.
+    unfold simple_while.
+    eapply EvalWhileTrue with
+      (ctx' := {| val := ($0 $+ ("x", 1)) $+ ("x", 0); trace := Branch true :: nil |})
+      (c := 1);
+      try crush_eval.
+    - eapply EvalWhileFalse with
+          (ctx := {| val := ($0 $+ ("x", 1)) $+ ("x", 0); trace := Branch true :: nil |}).
+      crush_eval.
+  Qed.
+
   (* Final Boss: Example from Lab05 *)
   Print the_answer_is_42.
   (* The trace will depend on the initial valuation, in particular on the value
