@@ -132,18 +132,18 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
   | EvalIfTrue: forall ctx e thn els ctx' c,
       interp_arith e ctx.(val) = c ->
       c <> 0 ->
-      eval phi ctx thn ctx' ->
-      eval phi ctx (If e thn els) {|val := ctx'.(val); trace:=(cons (Branch true) ctx'.(trace))|}
+      eval phi {| val := ctx.(val); trace := ctx.(trace) ++ (Branch true :: nil) |} thn ctx' ->
+      eval phi ctx (If e thn els) ctx'
   | EvalIfFalse: forall ctx e thn els ctx',
       interp_arith e ctx.(val) = 0 ->
-      eval phi ctx els ctx' ->
-      eval phi ctx (If e thn els) {|val:=ctx'.(val); trace:=(cons (Branch false) ctx'.(trace))|}
+      eval phi {| val := ctx.(val); trace := ctx.(trace) ++ (Branch false :: nil) |} els ctx' ->
+      eval phi ctx (If e thn els) ctx'
   | EvalWhileTrue: forall ctx e body ctx' ctx'' c,
       interp_arith e ctx.(val) = c ->
       c <> 0 ->
-      eval phi ctx body ctx' ->
+      eval phi {| val := ctx.(val); trace := ctx.(trace) ++ (Branch true :: nil) |} body ctx' ->
       eval phi ctx' (While e body) ctx'' ->
-      eval phi ctx (While e body) {|val := ctx''.(val); trace:=(cons (Branch true) ctx''.(trace))|}
+      eval phi ctx (While e body) ctx''
   | EvalWhileFalse: forall ctx e body,
       interp_arith e ctx.(val) = 0 ->
-      eval phi ctx (While e body) {|val := ctx.(val); trace:=(cons (Branch false) ctx.(trace))|}.
+      eval phi ctx (While e body) {| val := ctx.(val); trace := ctx.(trace) ++ (Branch false :: nil) |}.

@@ -49,7 +49,7 @@ Print simple_assign.
       {| val := $0 $+ ("x", 42); trace := Branch true :: nil |}.
   Proof.
     unfold simple_if.
-    eapply EvalIfTrue with (ctx' := {| val := $0 $+ ("x", 42); trace := nil |});
+    eapply EvalIfTrue with (ctx' := {| val := $0 $+ ("x", 42); trace := Branch true :: nil |});
       crush_eval.
   Qed.
 
@@ -59,7 +59,7 @@ Print simple_assign.
     eval $0
       empty_context
       simple_sequence
-      {| val := $0 $+ ("x", 0) $+ ("y", 0); trace := Branch false :: Branch true :: nil |}.
+      {| val := $0 $+ ("x", 0) $+ ("y", 0); trace := Branch true :: Branch false :: nil |}.
   Proof.
     unfold simple_sequence.
     eapply EvalSequence with
@@ -67,13 +67,13 @@ Print simple_assign.
     - eapply (@EvalIfTrue $0 empty_context 1
           (Assign "x" (Const 0))
           (Assign "x" (Const 0))
-          {| val := $0 $+ ("x", 0); trace := nil |} 1); crush_eval.
+          {| val := $0 $+ ("x", 0); trace := Branch true :: nil |} 1); crush_eval.
     - eapply (@EvalIfFalse $0
           {| val := $0 $+ ("x", 0); trace := Branch true :: nil |}
           0
           (Assign "y" (Const 0))
           (Assign "y" (Const 0))
-          {| val := ($0 $+ ("x", 0)) $+ ("y", 0); trace := Branch true :: nil |});
+          {| val := ($0 $+ ("x", 0)) $+ ("y", 0); trace := Branch true :: Branch false :: nil |});
       crush_eval.
   Qed.
 
@@ -89,13 +89,13 @@ Print simple_assign.
     eapply (@EvalIfTrue $0 empty_context 1
           (If (Const 0) (Assign "x" (Const 0)) (Assign "x" (Const 0)))
           (Assign "x" (Const 0))
-          {| val := $0 $+ ("x", 0); trace := Branch false :: nil |} 1).
+          {| val := $0 $+ ("x", 0); trace := Branch true :: Branch false :: nil |} 1).
     - crush_eval.
     - crush_eval.
-    - eapply (@EvalIfFalse $0 empty_context 0
+    - eapply (@EvalIfFalse $0 {| val := $0; trace := Branch true :: nil |} 0
           (Assign "x" (Const 0))
           (Assign "x" (Const 0))
-          {| val := $0 $+ ("x", 0); trace := nil |});
+          {| val := $0 $+ ("x", 0); trace := Branch true :: Branch false :: nil |});
       crush_eval.
   Qed.
 
@@ -103,7 +103,7 @@ Print simple_assign.
   Print the_answer_is_42.
   (* The trace will depend on the initial valuation, in particular on the value
     of "oops".
-    For example, with oops = 0 the trace will be [Branch true; Branch false],
+    For example, with oops = 0 the trace will be [Branch false; Branch true],
     while with oops = 1 the trace will be [Branch true; Branch true].
   *)
 
@@ -123,7 +123,7 @@ Print simple_assign.
   Definition oopsZeroValuation : valuation :=
     $0 $+ ("oops", 0).
   Definition traceWithZero : list trace_event :=
-    Branch true :: Branch false :: nil.
+    Branch false :: Branch true :: nil.
   Definition oopsNonZeroValuation : valuation :=
     $0 $+ ("oops", 1).
   Definition traceWithNonZero : list trace_event :=
@@ -140,7 +140,7 @@ Print simple_assign.
             (Assign "answer" (Const 42))
             (Assign "answer" (Const 24))))
       {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1) $+ ("answer", 42);
-         trace := Branch true :: Branch false :: nil |}.
+         trace := Branch false :: Branch true :: nil |}.
   Proof.
     eapply EvalSequence with
       (ctx1 := {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1);
@@ -150,7 +150,7 @@ Print simple_assign.
           (Var "x")
           (Assign "tmp" (Binop Plus (Var "x") (Var "x")))
           (Assign "tmp" (Const 1))
-          {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1); trace := nil |});
+          {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1); trace := Branch false :: nil |});
       crush_eval.
     - eapply (@EvalIfTrue $0
           {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1);
@@ -159,7 +159,7 @@ Print simple_assign.
           (Assign "answer" (Const 42))
           (Assign "answer" (Const 24))
           {| val := $0 $+ ("oops", 0) $+ ("x", 0) $+ ("tmp", 1) $+ ("answer", 42);
-             trace := Branch false :: nil |} 1); crush_eval.
+             trace := Branch false :: Branch true :: nil |} 1); crush_eval.
   Qed.
 
   Example trace_with_zero :
@@ -196,7 +196,7 @@ Print simple_assign.
           (Var "x")
           (Assign "tmp" (Binop Plus (Var "x") (Var "x")))
           (Assign "tmp" (Const 1))
-          {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2); trace := nil |} 1).
+          {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2); trace := Branch true :: nil |} 1).
       + crush_eval.
       + crush_eval.
       + apply EvalAssign. cbn. autorewrite with core. reflexivity.
@@ -207,7 +207,7 @@ Print simple_assign.
           (Assign "answer" (Const 42))
           (Assign "answer" (Const 24))
           {| val := $0 $+ ("oops", 1) $+ ("x", 1) $+ ("tmp", 2) $+ ("answer", 42);
-             trace := Branch true :: nil |} 2); crush_eval.
+             trace := Branch true :: Branch true :: nil |} 2); crush_eval.
   Qed.
 
   Example trace_with_nonzero :
