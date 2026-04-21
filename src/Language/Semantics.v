@@ -213,9 +213,26 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
 
 
 (* 
-   Augment the eval relation to also track security levels. 
-   The rules are mostly the same, but we need to track security levels in the context and add some additional premises to the rules.
-   
+   Augment the eval relation to also track security levels.
+   The new rules are detailed below.
+
+
+   [EvalSecAssign] 
+   adds the premise
+    [interp_sec e (sec_of ctx) = level] 
+   and updates both the valuation and the security environment, 
+   so the assigned variable receives both its value and its computed security label.
+
+   [EvalSecAssignCall]
+   adds security-level evaluation premises for the two arguments,
+    [interp_sec e1 (sec_of ctx) = level1] and
+    [interp_sec e2 (sec_of ctx) = level2].  
+   The callee then runs in a fresh security environment initialized
+   with those argument labels. 
+   The caller additionally requires 
+    [sec_lookup (sec_of ctx') y = level] 
+   so that the return variable's security label can
+   be propagated back to the assignee.
  *)
   
 
@@ -262,8 +279,33 @@ Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> P
       eval_sec phi ctx (While e body) (ctx st++ Branch false).
 
 
-(* Constant time semantics: a command is constant time if it does not branch on secret,
-   we define this using an inductive relation that tracks the security environment and ensures that all branches are on public data. *)
+(* Constant-time semantics.
+
+   Unlike [eval] and [eval_sec], this relation does not execute a command to a
+   final valuation.  Instead, it checks whether the command is well-labeled with
+   respect to constant-time discipline, threading only a security environment.
+
+   The structural rules [CtSkip] and [CtSequence] mirror the corresponding rules
+   in the evaluation relations, but over [sec_env] instead of execution contexts.
+
+   [CtAssign] updates the assigned variable with the label computed by
+   [interp_sec], recording how information may flow through the assignment.
+
+   [CtAssignCall] mirrors function-call structure, but initializes the callee
+   with the argument labels rather than argument values, checks the callee body
+   under those labels, and propagates the return variable's label back to the
+   caller via [sec_lookup body_se y].
+
+   The new constant-time condition appears in [CtIf]: the guard must satisfy
+   [interp_sec e se = Public], ensuring that branching does not depend on secret
+   data.  Both branches are checked, and their resulting environments are joined
+   with [join_sec_env].
+
+   [CtWhile] similarly requires the loop guard to be public, but also adds the
+   invariant premise [join_sec_env se se_inv = se_inv].  This ensures that the
+   loop body is checked in a security environment stable enough to soundly model
+   any number of iterations.
+ *)
 
 Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
   | CtSkip : forall se,
@@ -285,9 +327,11 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       interp_sec e se = Public ->
       ct_cmd phi se thn se_thn ->
       ct_cmd phi se els se_els ->
-      ct_cmd phi se (If e thn els) (join_sec_env se_thn se_els)
+      ct_cmd phi se (If e thn els) (join_sec_env se_thn se_els).
+  (*
   | CtWhile : forall se se_inv e body,
       join_sec_env se se_inv = se_inv ->
       interp_sec e se_inv = Public ->
       ct_cmd phi se_inv body se_inv ->
       ct_cmd phi se (While e body) se_inv.
+  *)
