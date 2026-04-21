@@ -68,6 +68,9 @@ Module Type S.
     ~P k
     -> lookup (restrict P m) k = None.
 
+  Axiom lookup_merge : forall A B f (m1 m2 : fmap A B) k,
+    lookup (merge f m1 m2) k = f (m1 $? k) (m2 $? k).
+
   Axiom lookup_restrict_true_fwd : forall A B (P : A -> Prop) (m : fmap A B) k v,
     lookup (restrict P m) k = Some v
     -> P k.
