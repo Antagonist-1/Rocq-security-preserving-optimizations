@@ -80,6 +80,19 @@ Definition simple_while :=
   While (Var "x")
     (Assign "x" (Const 0)).
 
+Definition secret_copy :=
+  Assign "x" (Var "secret").
+
+Definition public_guard_program :=
+  If (Var "flag")
+    (Assign "x" (Const 1))
+    (Assign "x" (Const 0)).
+
+Definition secret_guard_program :=
+  If (Var "secret")
+    (Assign "x" (Const 1))
+    (Assign "x" (Const 0)).
+
 Definition the_answer_is_42 :=
   Sequence
     (Assign "x" (Var "oops"))
