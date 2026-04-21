@@ -6,10 +6,11 @@ ROCQFLAGS=-R src ""
 rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Map.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Syntax.v
-	$(ROCQC) $(ROCQFLAGS) src/Language/Semantics.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Security.v
+	$(ROCQC) $(ROCQFLAGS) src/Language/Semantics.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Main.v
 	$(ROCQC) $(ROCQFLAGS) src/examples/Programs.v
+	$(ROCQC) $(ROCQFLAGS) src/examples/SecurityUnit.v
 # 	$(ROCQC) src/Lab06Signature.v
 # 	$(ROCQC) src/Lab06Implementation.v
 
