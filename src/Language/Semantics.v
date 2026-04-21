@@ -1,5 +1,6 @@
 Require Import Map.
 Require Import Language.Syntax.
+Require Import Language.Security.
 From Stdlib Require Import List.
 Import ListNotations.
 
@@ -41,31 +42,81 @@ Inductive trace_event :=
 | Branch: bool -> trace_event
 | MemWrite: var -> trace_event.
 
-Definition valuation := fmap var nat.
 
-(*we dont put secrets in context because they are static, not changing with the program*)
+(* 
+   Keep two contexts, for parallel work, we will migrate to a single context later
+   sec_context will be rename to just context and the old one will be removed.
+ *)
 Definition context := (valuation * list trace_event)%type.
+Definition sec_context := (valuation * sec_env * list trace_event)%type.
 
+(* Getters for contexts *)
 Definition val_of (ctx: context) := fst ctx.
 Definition trace_of (ctx: context) := snd ctx.
 
+(* Getters for sec_context *)
+Definition sec_val_of (ctx : sec_context) := fst (fst ctx).
+Definition sec_of (ctx : sec_context) := snd (fst ctx).
+Definition sec_trace_of (ctx : sec_context) := snd ctx.
+
+
+(* Some custom notations to make writing contexts more convenient.  For example, we can write
+   [($0, nil) t++ Branch true] 
+   instead of
+   [($0, nil), trace_of ($0, nil) ++ (Branch true :: nil)].
+*)
+
+
+(* Prepending an event to the trace *)
 Notation "ev 't::' ctx" :=
   (val_of ctx, ev :: trace_of ctx)
   (at level 60).
+
+(* Appending an event to the trace *)
 Notation "ctx 't++' ev" :=
   (val_of ctx, trace_of ctx ++ (ev :: nil))
   (at level 60).
+
+(* Updating the valuation in the context *)
 Notation "ctx 'v$+' ( k , v )" :=
   (val_of ctx $+ (k, v), trace_of ctx)
   (at level 50, left associativity).
 
+(* Updating the valuation in a security context *)
+Notation "ctx 'sv$+' ( k , v )" :=
+  (sec_val_of ctx $+ (k, v), sec_of ctx, sec_trace_of ctx)
+  (at level 50, left associativity).
+
+(* Updating the security environment in a security context *)
+Notation "ctx 's$+' ( k , level )" :=
+  (sec_val_of ctx, sec_of ctx $+ (k, level), sec_trace_of ctx)
+  (at level 50, left associativity).
+
+(* Appending an event to the trace in a security context *)
+Notation "ctx 'st++' ev" :=
+  (sec_val_of ctx, sec_of ctx, sec_trace_of ctx ++ (ev :: nil))
+  (at level 60).
+
+(* Define empty contexts to make writing examples easier *)
 Definition empty_context : context := ($0, nil).
+Definition empty_sec_context : sec_context := ($0, $0, nil).
 
 Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
   match e with
   | Const n => n
   | Var x => match v $? x with Some a => a | None => 0 end
   | Binop b e1 e2 => interp_binop b (interp_arith e1 v) (interp_arith e2 v)
+  end.
+
+(*
+  Compute the security level of an expression, given a security environment.
+   Using join_sec to combine the security levels of subexpressions.
+ *) 
+Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
+  match e with
+  | Const _ => Public
+  | Var x => sec_lookup se x
+  | Binop _ e1 e2 => join_sec (interp_sec e1 se) (interp_sec e2 se)
   end.
 
 (** For commands, we'll use an inductive [Prop] to define big-step semantics.
@@ -158,3 +209,85 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
   | EvalWhileFalse: forall ctx e body,
       interp_arith e (val_of ctx) = 0 ->
       eval phi ctx (While e body) (ctx t++ Branch false).
+
+
+
+(* 
+   Augment the eval relation to also track security levels. 
+   The rules are mostly the same, but we need to track security levels in the context and add some additional premises to the rules.
+   
+ *)
+  
+
+
+
+Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> Prop :=
+  | EvalSecSkip : forall ctx,
+      eval_sec phi ctx Skip ctx
+  | EvalSecAssign : forall ctx x e a level,
+      interp_arith e (sec_val_of ctx) = a ->
+      interp_sec e (sec_of ctx) = level ->
+      eval_sec phi ctx (Assign x e) ((ctx sv$+ (x, a)) s$+ (x, level))
+  | EvalSecAssignCall : forall x f e1 e2 x1 x2 y body a1 a2 level1 level2 ctx ctx' a level,
+      phi $? f = Some ((x1, x2), y, body) ->
+      interp_arith e1 (sec_val_of ctx) = a1 ->
+      interp_arith e2 (sec_val_of ctx) = a2 ->
+      interp_sec e1 (sec_of ctx) = level1 ->
+      interp_sec e2 (sec_of ctx) = level2 ->
+      eval_sec phi (($0 $+ (x1, a1) $+ (x2, a2)), ($0 $+ (x1, level1) $+ (x2, level2)), sec_trace_of ctx) body ctx' ->
+      sec_val_of ctx' $? y = Some a ->
+      sec_lookup (sec_of ctx') y = level ->
+      eval_sec phi ctx (AssignCall x f e1 e2) ((sec_val_of ctx $+ (x, a)), (sec_of ctx $+ (x, level)), sec_trace_of ctx')
+  | EvalSecSequence : forall ctx c1 ctx1 c2 ctx2,
+      eval_sec phi ctx c1 ctx1 ->
+      eval_sec phi ctx1 c2 ctx2 ->
+      eval_sec phi ctx (Sequence c1 c2) ctx2
+  | EvalSecIfTrue : forall ctx e thn els ctx' c,
+      interp_arith e (sec_val_of ctx) = c ->
+      c <> 0 ->
+      eval_sec phi (ctx st++ Branch true) thn ctx' ->
+      eval_sec phi ctx (If e thn els) ctx'
+  | EvalSecIfFalse : forall ctx e thn els ctx',
+      interp_arith e (sec_val_of ctx) = 0 ->
+      eval_sec phi (ctx st++ Branch false) els ctx' ->
+      eval_sec phi ctx (If e thn els) ctx'
+  | EvalSecWhileTrue : forall ctx e body ctx' ctx'' c,
+      interp_arith e (sec_val_of ctx) = c ->
+      c <> 0 ->
+      eval_sec phi (ctx st++ Branch true) body ctx' ->
+      eval_sec phi ctx' (While e body) ctx'' ->
+      eval_sec phi ctx (While e body) ctx''
+  | EvalSecWhileFalse : forall ctx e body,
+      interp_arith e (sec_val_of ctx) = 0 ->
+      eval_sec phi ctx (While e body) (ctx st++ Branch false).
+
+
+(* Constant time semantics: a command is constant time if it does not branch on secret,
+   we define this using an inductive relation that tracks the security environment and ensures that all branches are on public data. *)
+
+Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
+  | CtSkip : forall se,
+      ct_cmd phi se Skip se
+  | CtAssign : forall se x e,
+      ct_cmd phi se (Assign x e) (se $+ (x, interp_sec e se))
+  | CtAssignCall : forall se x f e1 e2 x1 x2 y body body_se,
+      phi $? f = Some ((x1, x2), y, body) ->
+      ct_cmd phi
+        ($0 $+ (x1, interp_sec e1 se) $+ (x2, interp_sec e2 se))
+        body
+        body_se ->
+      ct_cmd phi se (AssignCall x f e1 e2) (se $+ (x, sec_lookup body_se y))
+  | CtSequence : forall se c1 se1 c2 se2,
+      ct_cmd phi se c1 se1 ->
+      ct_cmd phi se1 c2 se2 ->
+      ct_cmd phi se (Sequence c1 c2) se2
+  | CtIf : forall se e thn els se_thn se_els,
+      interp_sec e se = Public ->
+      ct_cmd phi se thn se_thn ->
+      ct_cmd phi se els se_els ->
+      ct_cmd phi se (If e thn els) (join_sec_env se_thn se_els)
+  | CtWhile : forall se se_inv e body,
+      join_sec_env se se_inv = se_inv ->
+      interp_sec e se_inv = Public ->
+      ct_cmd phi se_inv body se_inv ->
+      ct_cmd phi se (While e body) se_inv.
