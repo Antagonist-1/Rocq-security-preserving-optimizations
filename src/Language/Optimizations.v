@@ -3,171 +3,142 @@ Require Import Language.Syntax.
 Require Import Language.Semantics.
 Require Import examples.Programs.
 
+Require Import Stdlib.Structures.OrderedTypeEx.
+Require Import Stdlib.Structures.OrdersAlt.
+Require Import Stdlib.MSets.MSetWeakList.
+Require Import Stdlib.MSets.MSetFacts.
+Require Import Stdlib.MSets.MSetProperties.
 
-(** Constant folding  - from lab08 *)
-Definition opt_binop_fold (b: BinopName) (e1 e2: expr) : expr :=
-  match b with
-  | Plus =>
-    match e1 with
-    | Const 0 => e2
-    | _ =>
-      match e2 with
-      | Const 0 => e1
-      | _ => Binop b e1 e2
-      end
-    end
-  | Times =>
-    match e1 with
-    | Const 0 => Const 0
-    | _ =>
-      match e2 with
-      | Const 0 => Const 0
-      | _ => Binop b e1 e2
-      end
-    end
-  | Divide =>
-    match e2 with
-    | Const 1 => e1
-    | _ => Binop b e1 e2
-    end
-  | _ => Binop b e1 e2
+(* clean programs by removing skips after DSE *)
+Fixpoint opt_unskip (c: cmd) :  cmd :=
+  match c with
+  | Sequence c1 c2 => match (opt_unskip c1), (opt_unskip c2) with
+                       | Skip, c2' => c2'
+                       | c1', Skip => c1'
+                       | c1', c2' => c1' ;; c2'
+                     end
+  | If cond thenC elseC => match opt_unskip thenC, opt_unskip elseC with
+                          | Skip, Skip => Skip
+                          | thenC', elseC' => If cond thenC' elseC'
+                          end
+  (* We can't simplify the body because it might be non-terminating *)
+  | While cond body => While cond (opt_unskip body)
+  | _ => c
   end.
-Arguments opt_binop_fold !_ !_ !_ /. (* Coq magic *)
 
-(** Precomputation *)
-Definition opt_binop_precompute (b: BinopName) (e1 e2: expr) : expr :=
-  match e1, e2 with
-  | Const n1, Const n2 => Const (interp_binop b n1 n2)
-  | _, _ => Binop b e1 e2
-  end.
-Arguments opt_binop_precompute !_ !_ !_ /. (* Coq magic *)
+(* VarSet represents sets of strings*)
+Module StringOT := Update_OT String_as_OT.
+Module VarSet := MSetWeakList.Make StringOT.
+Module VarSetFacts := MSetFacts.Facts VarSet.
+Module VarSetProps := MSetProperties.Properties VarSet.
 
-(** The overall arithmetic optimizer *)
-Fixpoint opt_arith (e: expr) : expr :=
+(*
+VarSet API:
+(* membership *)
+VarSet.mem x s        (* returns bool *)
+
+(* add/remove *)
+VarSet.add x s
+VarSet.remove x s
+
+(* union *)
+VarSet.union s1 s2
+
+VarSet.equal s1 s2    (* returns bool *)
+
+(* size *)
+VarSet.cardinal s
+ *)
+
+Definition var_set := VarSet.t.
+
+  (* All vars used in an expr *)
+Fixpoint vars_in_expr (e: expr) : var_set :=
   match e with
-  | Binop b e1 e2 =>
-    match opt_binop_precompute b (opt_arith e1) (opt_arith e2) with
-    | Binop b' e1' e2' =>
-      opt_binop_fold b (opt_arith e1) (opt_arith e2)
-    | e' => e'
-    end
-  | _ => e
-  end.
-Arguments opt_arith !e /. (* Coq magic *)
-
-Fixpoint opt_remove_branch (c : cmd) : cmd :=
-match c with
-| Skip => Skip
-| Assign _ _ => c
-| Sequence c1 c2 => Sequence (opt_remove_branch c1) (opt_remove_branch c2)
-| AssignCall x f e1 e2 => AssignCall x f e1 e2
-| If cond thn els => match (opt_arith cond) with
-                    | Const n => match n with
-                                | 0 => (opt_remove_branch els)
-                                | _ => (opt_remove_branch thn)
-                                end
-                    | optim => If optim (opt_remove_branch thn) (opt_remove_branch els)
-                    end
-| While cond body => match (opt_arith cond) with
-                    | Const n => match n with
-                                | 0 => Skip
-                                | _ => While 1 (opt_remove_branch body)
-                                end
-                    | optim => While optim (opt_remove_branch body)
-                    end
-end.
-
-
-(* set of live variable *)
-Definition live_set := fmap var unit.
-
-Fixpoint vars_in_expr (e: expr) : live_set :=
-  match e with
-  | Const n => $0
-  | Var x => $0 $+ (x, tt)
-  | Binop b e1 e2 => join (vars_in_expr e1) (vars_in_expr e2)
+  | Const n => VarSet.empty
+  | Var x => VarSet.singleton x
+  | Binop b e1 e2 => VarSet.union (vars_in_expr e1) (vars_in_expr e2)
   end.
 
-(* Admitted. recurse over binop and collect vars *)
+  (* All vars used in a cmd *)
+Fixpoint vars_in_cmd (c: cmd) : var_set :=
+  match c with
+  | Skip => VarSet.empty
+  | Assign x e => VarSet.add x (vars_in_expr e)
+  | AssignCall x f e1 e2 => VarSet.add x (VarSet.union (vars_in_expr e1) (vars_in_expr e2))
+  | Sequence c1 c2 => VarSet.union (vars_in_cmd c1) (vars_in_cmd c2)
+  | If e c1 c2 => VarSet.union (vars_in_expr e) (VarSet.union (vars_in_cmd c1) (vars_in_cmd c2))
+  | While e body => VarSet.union (vars_in_expr e) (vars_in_cmd body)
+  end.
 
-(*basic, unsafe DSE*)
+  (* Fixpoint algorithm, perform f until no change (max: fuel iterations) *)
+Fixpoint fixpoint  (f: var_set -> var_set) (x: var_set) (fuel: nat): var_set :=
+  match fuel with
+  | 0 => x
+  | S n =>
+      let x' := f x in
+      if VarSet.equal x x'
+      then x
+      else fixpoint f x' n
+  end.
+
+(*note: n_vars is enough to iterate. because f is monotonous, and there are a bound number of variables.*)
+
+(*Set of all vars stored by some program*) (*This is unused for now. We need it if we do While loop elimination *)
+(* Fixpoint written_vars (c: cmd) : var_set := *)
+(*   match c with *)
+(*   | Skip => VarSet.empty *)
+(*   | Assign x _ => VarSet.singleton x *)
+(*   | AssignCall x _ _ _ => VarSet.singleton x *)
+(*   | Sequence c1 c2 => VarSet.union (written_vars c1) (written_vars c2) *)
+(*   | If _ thenC elseC => VarSet.union (written_vars thenC) (written_vars elseC) *)
+(*   | While _ body => written_vars body *)
+(*   end. *)
 
 
-(* compute liveness, given liveness at next point *)
-Fixpoint liveness (c: cmd) (out: live_set): live_set :=
+(* compute live variables, given live variables from after command *)
+(* The analysis goes backwards. *)
+(* formula: live_in = live_out + vars used in command - vars overwritten in command *)
+Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
   match c with 
   | Skip => out
   | Assign x e =>
-      join (remove out x) (vars_in_expr e)
+      (* if the assigned value is not live, the values used dont become live 
+      -> propagates backwardsunuse of variables *)
+      if VarSet.mem x out
+      then VarSet.union (VarSet.remove x out) (vars_in_expr e)
+      else out
   (*Body of functions cant access outer functions, no need to care about it*)
   | AssignCall x f e1 e2 =>
-      join (remove out x) (join (vars_in_expr e1) (vars_in_expr e2))
+      VarSet.union (VarSet.remove x out) (VarSet.union (vars_in_expr e1) (vars_in_expr e2))
   | Sequence c1 c2 =>
       liveness c1 (liveness c2 out)
   | If e thenC elseC =>
-      join (vars_in_expr e) (join (liveness thenC out) (liveness elseC out))
-  (*simplification. we need a fixpoint algorithm (bounded (fueled) to amount of variables)*)
+       VarSet.union (vars_in_expr e) (VarSet.union (liveness thenC out) (liveness elseC out))
   | While e body =>
-      join (vars_in_expr e) (join out (liveness body out))
+      VarSet.union (vars_in_expr e)
+        (fixpoint (liveness body) out (VarSet.cardinal (vars_in_cmd c)))
   end.
 
-Fixpoint dse_helper (c: cmd) (out: live_set) : cmd :=
+
+Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
   match c with
   | Skip => Skip
   | Assign x e =>
-      match out $? x with
-      | None => Skip (*not live, remove this assignment*)
-      | _ => Assign x e (*used later. keep it*)
+      match VarSet.mem x out with
+      | false => Skip (*not live, remove this assignment*)
+      | true => Assign x e (*used later. keep it*)
       end
-        (*keep assigncalls for now*)
+        (*keep assigncalls for now, but they could be removed as in simple Assign*)
   | AssignCall x f e1 e2 => AssignCall x f e1 e2
   | Sequence c1 c2 =>
       Sequence (dse_helper c1 (liveness c2 out)) (dse_helper c2 out)
   | If e thenC elseC =>
       If e (dse_helper thenC out) (dse_helper elseC out)
-         (*while body, just use simplification from liveness*)
   | While e body =>
       While e (dse_helper body (liveness c out))
-            end.
+  end.
 
+Definition opt_dse (c: cmd) (result: var): cmd :=
+  opt_unskip (dse_helper c (VarSet.singleton result)).
 
-Definition opt_dead_store_elim (c: cmd): cmd :=
-  dse_helper c $0.
-
-  (* ("f" <- 2;; *)
-  (* "g" <- 2;; *)
-  (* when "f" == 0 then *)
-  (*    "g" <-  *)
-  (*  else *)
-  (*    Skip *)
-  (*      done *)
-  (* ). *)
-
-Goal opt_dead_store_elim simple_assign = Skip.
-Proof.
-  compute.
-  rewrite lookup_empty.
-  reflexivity.
-Qed.
-
-Goal
-
-
-(* when seeing an assign, we look later in the program if it is used*)
-(* how can we do that well?
-good question. I might need small step to consider how the program is after the assign.
-
-lets say i have
-assign x<-e;;
-do that;;
-do this;;
-assert 1
-assign x <- e'
-
-is x accessed ? before beeing overwritten otherwise, we can remove the first assign.
-without smallstep: I can check the value
-
-
-
-
- *)
