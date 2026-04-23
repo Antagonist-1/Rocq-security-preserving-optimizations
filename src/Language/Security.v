@@ -1,7 +1,6 @@
 Require Import Map.
 Require Import Language.Syntax.
 
-Definition valuation := fmap var nat.
 
 (* Define security levels for variables as either Public or Secret *)
 Inductive sec_level :=
@@ -60,9 +59,3 @@ Definition join_sec_env (se1 se2 : sec_env) : sec_env :=
 Definition is_secret (se : sec_env) (x : var) : Prop :=
   sec_lookup se x = Secret.
 
-(*2 programs agree on public variables, with potentially different secrets *)
-Definition agree_on_public (se : sec_env) (v1 v2 : valuation) : Prop :=
-  forall x, sec_lookup se x = Public -> v1 $? x = v2 $? x.
-
-(* Another way is to say that two valuations are low-equivalent, meaning they agree on all public variables *)
-Definition low_equiv := agree_on_public.

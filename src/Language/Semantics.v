@@ -5,7 +5,7 @@ From Stdlib Require Import List.
 Import ListNotations.
 
 (** ** Semantics *)
-
+Definition valuation := fmap var nat.
 (** Our first step is to give a meaning to these new constructs.  Let's start with
     an interpreter for binary operators: *)
 Definition interp_binop (b: BinopName) (n1 n2: nat) :=
@@ -118,6 +118,15 @@ Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
   | Var x => sec_lookup se x
   | Binop _ e1 e2 => join_sec (interp_sec e1 se) (interp_sec e2 se)
   end.
+
+
+
+(*2 programs agree on public variables, with potentially different secrets *)
+Definition agree_on_public (se : sec_env) (v1 v2 : valuation) : Prop :=
+  forall x, sec_lookup se x = Public -> v1 $? x = v2 $? x.
+
+(* Another way is to say that two valuations are low-equivalent, meaning they agree on all public variables *)
+Definition low_equiv := agree_on_public.
 
 (** For commands, we'll use an inductive [Prop] to define big-step semantics.
     This is an opportunity to show that compiler proofs can work with a variety
