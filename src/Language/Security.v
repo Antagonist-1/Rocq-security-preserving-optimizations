@@ -32,30 +32,20 @@ Definition sec_lookup (se : sec_env) (x : var) : sec_level :=
   end.
 
 (* 
-    A function to convert an optional security level to a security level, treating None as Public.
-    This is useful for the join operation, where we want to treat missing variables as Public.
-*)
-Definition sec_of_option (level : option sec_level) : sec_level :=
-  match level with
-  | Some level' => level'
-  | None => Public
-  end.
-
-
-(* 
     A function to join two security environments, combining their mappings using the join_sec operation.
-    If a variable is marked as Secret in either environment, it will be marked as Secret in the joined environment.
-    If a variable is not found in either environment, it will be treated as Public.
-    if a variable is public in both environments, we don't store it in the joined environment, as sec_lookup will return Public by default for missing variables.
-*)
+    If a variable is absent from both environments, it stays absent.
+    If it is present in exactly one environment, we keep that label.
+    If it is present in both environments, we join the labels with [join_sec].
+ *)
 Definition join_sec_env (se1 se2 : sec_env) : sec_env :=
   merge (fun level1 level2 =>
-    match join_sec (sec_of_option level1) (sec_of_option level2) with
-    | Public => None 
-    | Secret => Some Secret
+    match level1, level2 with
+    | None, None => None
+    | Some level, None => Some level
+    | None, Some level => Some level
+    | Some level1', Some level2' => Some (join_sec level1' level2')
     end) se1 se2.
 
 
 Definition is_secret (se : sec_env) (x : var) : Prop :=
   sec_lookup se x = Secret.
-
