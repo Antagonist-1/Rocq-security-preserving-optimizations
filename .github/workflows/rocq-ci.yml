@@ -1,0 +1,24 @@
+name: Rocq CI
+
+on:
+  push:
+    branches: [ main, "ci/**" ]
+  pull_request:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build with Rocq 9.2
+        # Note the 'rocq-community' handle here
+        uses: rocq-community/docker-coq-action@v1
+        with:
+          # Latest stable version as of April 2026
+          custom_image: rocq/rocq-prover:9.2
+          # This script runs with the opam environment ALREADY active
+          custom_script: |
+            sudo chown -R $(id -u):$(id -g) .
+            make rocq
