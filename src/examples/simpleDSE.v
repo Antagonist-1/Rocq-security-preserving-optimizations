@@ -70,6 +70,14 @@ Goal opt_dse  chained_dead "y" =
 Qed.
 
 
+Goal opt_dse while_issue1 "z" = while_issue1.
+  reflexivity.
+Qed.
+
+Goal opt_dse while_issue2 "z" = while_issue2.
+  reflexivity.
+Qed.
+
 (*We could possibly make DSE stronger, by detecting non-infinite, useless loops.
 but that seems a lot of work for not much result.
  *)

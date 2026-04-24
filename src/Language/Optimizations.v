@@ -116,8 +116,8 @@ Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
   | If e thenC elseC =>
        VarSet.union (vars_in_expr e) (VarSet.union (liveness thenC out) (liveness elseC out))
   | While e body =>
-      VarSet.union (vars_in_expr e)
-        (fixpoint (liveness body) out (VarSet.cardinal (vars_in_cmd c)))
+      let seed := VarSet.union out (vars_in_expr e) in
+        fixpoint (liveness body) seed (VarSet.cardinal (vars_in_cmd c))
   end.
 
 

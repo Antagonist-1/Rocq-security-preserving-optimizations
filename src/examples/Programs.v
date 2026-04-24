@@ -132,3 +132,16 @@ Definition chained_dead :=
    "x" <- 2;;
    "x" <- 3;;
    "y" <- Var "x").
+
+(*Variables in while condition should be live and propagate their liveness inside the while's body*)
+Definition while_issue1 :=
+  ("x" <- 1;;
+   while "y" loop
+     "y" <- "x"
+             done).
+
+Definition while_issue2 :=
+  (while "x" loop
+     "x" <- "y";;
+     "y" <- "y" - 1
+   done).
