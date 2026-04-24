@@ -72,14 +72,14 @@ Fixpoint vars_in_cmd (c: cmd) : var_set :=
   end.
 
   (* Fixpoint algorithm, perform f until no change (max: fuel iterations) *)
-Fixpoint while_fixpoint  (f: var_set -> var_set) (cond_vars: var_set) (x: var_set) (fuel: nat): var_set :=
+Fixpoint while_fixpoint  (f: var_set -> var_set) (cond_vars: var_set) (out: var_set) (fuel: nat): var_set :=
   match fuel with
-  | 0 => x
+  | 0 => out
   | S n =>
-      let x' := VarSet.union cond_vars (f x) in
-      if VarSet.equal x x'
-      then x
-      else while_fixpoint f cond_vars x' n
+      let _in := VarSet.union (VarSet.union out cond_vars) (f out) in
+      if VarSet.equal out _in
+      then out
+      else while_fixpoint f cond_vars _in n
   end.
 
 (*note: n_vars is enough to iterate. because f is monotonous, and there are a bound number of variables.*)
@@ -99,6 +99,8 @@ Fixpoint while_fixpoint  (f: var_set -> var_set) (cond_vars: var_set) (x: var_se
 (* compute live variables, given live variables from after command *)
 (* The analysis goes backwards. *)
 (* formula: live_in = live_out + vars used in command - vars overwritten in command *)
+
+(*More details about formula: https://cs420.epfl.ch/c/06_dataflow.html*)
 Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
   match c with 
   | Skip => out
