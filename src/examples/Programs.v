@@ -145,3 +145,15 @@ Definition while_issue2 :=
      "x" <- "y";;
      "y" <- "y" - 1
    done).
+
+Definition while_issue3 :=
+  (while "x" loop
+      "x" <- 5
+    done).
+
+Definition while_issue4 :=
+  ("y" <- 10;;
+  while "x" loop
+    "y" <- "5";;
+    "x" <- "x" - 1
+  done).

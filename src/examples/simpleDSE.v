@@ -78,6 +78,14 @@ Goal opt_dse while_issue2 "z" = while_issue2.
   reflexivity.
 Qed.
 
+Goal opt_dse while_issue3 "z" = while_issue3.
+  reflexivity.
+Qed.
+
+Goal opt_dse while_issue4 "y" = while_issue4.
+  reflexivity.
+Qed.
+
 (*We could possibly make DSE stronger, by detecting non-infinite, useless loops.
 but that seems a lot of work for not much result.
  *)
