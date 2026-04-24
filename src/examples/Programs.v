@@ -103,3 +103,70 @@ Definition the_answer_is_42 :=
       (If (Var "tmp")
           (Assign "answer" (Const 42))
           (Assign "answer" (Const 24)))).
+
+
+(* Simple DSE programs *)
+
+Definition dead_assign :=
+  ("x" <- 5;;
+   "x" <- 10).
+
+Definition live_assign :=
+  ("x" <- 5;;
+    "y" <- Var "x";;
+    "x" <- 10).
+
+
+Definition live_in_condition :=
+  ("x" <- 5;;
+   when (Var "x") then
+     "y" <- 1
+   else
+     "y" <- 0
+   done).
+
+Definition dead_before_if :=
+  ("x" <- 5;;
+   when (Var "cond") then
+     "x" <- 1
+   else
+     "x" <- 2
+   done).
+
+Definition dead_in_loop :=
+  ("tmp" <- 0;;
+   while (Var "n") loop
+     "tmp" <- Var "n";;
+     "n" <- Var "n" - 1
+   done).
+
+Definition chained_dead :=
+  ("x" <- 1;;
+   "x" <- 2;;
+   "x" <- 3;;
+   "y" <- Var "x").
+
+(*Variables in while condition should be live and propagate their liveness inside the while's body*)
+Definition while_issue1 :=
+  ("x" <- 1;;
+   while "y" loop
+     "y" <- "x"
+             done).
+
+Definition while_issue2 :=
+  (while "x" loop
+     "x" <- "y";;
+     "y" <- "y" - 1
+   done).
+
+Definition while_issue3 :=
+  (while "x" loop
+      "x" <- 5
+    done).
+
+Definition while_issue4 :=
+  ("y" <- 10;;
+  while "x" loop
+    "y" <- "5";;
+    "x" <- "x" - 1
+  done).
