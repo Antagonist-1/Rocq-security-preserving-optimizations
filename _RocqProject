@@ -4,4 +4,5 @@ src/Language/Syntax.v
 src/Language/Semantics.v
 src/Language/Security.v
 src/Language/Main.v
+src/Language/Optimizations.v
 src/examples/Programs.v
