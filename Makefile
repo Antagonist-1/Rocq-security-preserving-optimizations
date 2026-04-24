@@ -9,9 +9,11 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Language/Security.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Semantics.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Main.v
-  $(ROCQC) $(ROCQFLAGS) src/Language/Optimizations.v
 	$(ROCQC) $(ROCQFLAGS) src/examples/Programs.v
+	$(ROCQC) $(ROCQFLAGS) src/Language/Optimizations.v
 	$(ROCQC) $(ROCQFLAGS) src/examples/SecurityUnit.v
+	$(ROCQC) $(ROCQFLAGS) src/examples/SimpleDSE.v
+	$(ROCQC) $(ROCQFLAGS) src/examples/SimpleTraces.v
 
 
 clean:
