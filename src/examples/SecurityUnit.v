@@ -37,7 +37,7 @@ Example ct_public_guard_program_ok :
       se'.
 Proof.
   eexists.
-  econstructor; [crush_security | econstructor | econstructor].
+  econstructor; [crush_security | econstructor; crush_security | econstructor; crush_security].
 Qed.
 
 (* `ct_cmd`: branching on a secret guard is rejected by the constant-time checker. *)

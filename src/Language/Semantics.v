@@ -319,15 +319,19 @@ Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> P
 Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
   | CtSkip : forall se,
       ct_cmd phi se Skip se
-  | CtAssign : forall se x e,
-      ct_cmd phi se (Assign x e) (se $+ (x, interp_sec e se))
-  | CtAssignCall : forall se x f e1 e2 x1 x2 y body body_se,
+  | CtAssign : forall se x e level,
+      interp_sec e se = level ->
+      ct_cmd phi se (Assign x e) (se $+ (x, level))
+  | CtAssignCall : forall se x f e1 e2 x1 x2 y body body_se level1 level2 level,
       phi $? f = Some ((x1, x2), y, body) ->
+      interp_sec e1 se = level1 ->
+      interp_sec e2 se = level2 ->
       ct_cmd phi
-        ($0 $+ (x1, interp_sec e1 se) $+ (x2, interp_sec e2 se))
+        ($0 $+ (x1, level1) $+ (x2, level2))
         body
         body_se ->
-      ct_cmd phi se (AssignCall x f e1 e2) (se $+ (x, sec_lookup body_se y))
+      sec_lookup body_se y = level ->
+      ct_cmd phi se (AssignCall x f e1 e2) (se $+ (x, level))
   | CtSequence : forall se c1 se1 c2 se2,
       ct_cmd phi se c1 se1 ->
       ct_cmd phi se1 c2 se2 ->

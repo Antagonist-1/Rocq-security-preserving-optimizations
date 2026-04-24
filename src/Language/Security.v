@@ -28,11 +28,11 @@ Definition join_sec (s1 s2 : sec_level) : sec_level :=
 Definition sec_lookup (se : sec_env) (x : var) : sec_level :=
   match se $? x with
   | Some level => level
-  | None => Public
+  | None => Public (* Default can be changed to Secret or Public *)
   end.
 
 (* 
-    A function to join two security environments, combining their mappings using the join_sec operation.
+    Join two security environments, combining their mappings using the join_sec operation.
     If a variable is absent from both environments, it stays absent.
     If it is present in exactly one environment, we keep that label.
     If it is present in both environments, we join the labels with [join_sec].
@@ -49,3 +49,5 @@ Definition join_sec_env (se1 se2 : sec_env) : sec_env :=
 
 Definition is_secret (se : sec_env) (x : var) : Prop :=
   sec_lookup se x = Secret.
+
+(* Could prove keys equivalence betweeen sec_env fmap and val fmap *) 
