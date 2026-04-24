@@ -72,14 +72,14 @@ Fixpoint vars_in_cmd (c: cmd) : var_set :=
   end.
 
   (* Fixpoint algorithm, perform f until no change (max: fuel iterations) *)
-Fixpoint fixpoint  (f: var_set -> var_set) (x: var_set) (fuel: nat): var_set :=
+Fixpoint while_fixpoint  (f: var_set -> var_set) (cond_vars: var_set) (x: var_set) (fuel: nat): var_set :=
   match fuel with
   | 0 => x
   | S n =>
-      let x' := f x in
+      let x' := VarSet.union cond_vars (f x) in
       if VarSet.equal x x'
       then x
-      else fixpoint f x' n
+      else while_fixpoint f cond_vars x' n
   end.
 
 (*note: n_vars is enough to iterate. because f is monotonous, and there are a bound number of variables.*)
@@ -116,8 +116,7 @@ Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
   | If e thenC elseC =>
        VarSet.union (vars_in_expr e) (VarSet.union (liveness thenC out) (liveness elseC out))
   | While e body =>
-      let seed := VarSet.union out (vars_in_expr e) in
-        fixpoint (liveness body) seed (VarSet.cardinal (vars_in_cmd c))
+        while_fixpoint (liveness body) (vars_in_expr e) out (VarSet.cardinal (vars_in_cmd c))
   end.
 
 
