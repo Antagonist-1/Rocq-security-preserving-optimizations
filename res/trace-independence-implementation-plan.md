@@ -1,23 +1,24 @@
-**Implementation Plan**
-
 ## Goal
+
+This week we will extend the semantics to track secrecy. Next week we do proof of trace non-interference for the constant-time checker. 
+_(Non interference is the technical term for the property that changes to secret inputs are not reflected , which in our setting means that secret inputs do not affect the trace.)_
 
 Extend the language and semantics so that:
 
-- secrecy is tracked during execution via a `sec_env`
+- secrecy is tracked in a second semantics via a `sec_env` (instead of changing the existing `eval` immediately)
 - secrecy propagates through assignments and expressions via `interp_sec`
-- `eval` remains a plain execution semantics
-- a second judgment checks constant-time style trace safety
-- initial secrecy comes from function inputs, not from ad hoc assignments
+- `eval` remains exactly the plain execution semantics used today, so colleagues can work in parallel on the language without rebasing onto a semantics refactor
+- a second evaluator / judgment threads secrecy information alongside execution
+- a second judgment checks constant-time style trace safety (this blocks programs with secret guards, but does not affect execution semantics)
 
 ## Design Summary
-
-Use a minimal Jasmin-inspired model:
+a minimal *Jasmin-inspired* model:
 
 - security lattice: `Public | Secret` (instead of just having true/false for whether an expression is secret/or public)
 - security environment: `fmap var sec_level` (`previously fmap var unit`)
-- runtime context: valuation + security environment + trace
+- runtime context for the secrecy-aware semantics: valuation * security environment * trace
 - expression security interpreter: `interp_sec` (return the sec_level of an expression given a `sec_env`)
+- keep the current `eval` context unchanged and introduce a separate secrecy-aware evaluation relation (for example `eval_sec`)
 - separate constant-time checker: (Build proof tree of secure commands, rejecting secret guards)
   - `if` and `while` guards (conditions) must be `Public`
 
@@ -27,18 +28,24 @@ To implement this week :
 
 - `sec_level`
 - `sec_env`
-- extended `context`
+- a second secrecy-aware `context`
 - `interp_sec`
-- secrecy propagation in `eval`
+- secrecy propagation in the second evaluator
 - constant-time checker judgment
 - examples and small proof update
 
-For later:
+Next week 
+- Add the theorem layer on top.
+ if two initial valuations agree on all public variables
+ and they may differ on secret ones
+and the command passes the constant-time checker
+ then any two evaluations produce the same trace
 
-- source syntax for `secret`
-- declassification
+For later (after we prove non-interference next week):
+
+
+- declassification?
 - safe DSE integration
-- full Jasmin-style polymorphic security contracts
 
 ## File-by-File Plan
 
@@ -69,7 +76,8 @@ Recommended shape:
 This is a standard entry point for non-interference proofs:  For all agree_on_public (same public variables) we have the same trace.
 ### 2. `src/Language/Semantics.v`
 
-Extend the runtime state.
+Keep the current runtime state for `eval` unchanged.
+Add a second runtime state / evaluator for secrecy-aware execution.
 
 Current:
 
@@ -77,7 +85,8 @@ Current:
 
 Planned:
 
-- `context := valuation * sec_env * list trace_event`
+- keep `context := valuation * list trace_event` for the existing `eval`
+- add a second context, for example `sec_context := valuation * sec_env * list trace_event`
 
 Add accessors:
 
@@ -91,11 +100,13 @@ Update notations:
 - valuation update notation
 - add a security update notation if useful
 
-Update `empty_context`:
+Update or add `empty_context` constructors:
 
-- empty valuation
-- empty security env
-- empty trace
+- keep the current empty context for `eval`
+- add an empty secrecy-aware context with:
+  - empty valuation
+  - empty security env
+  - empty trace
 
 Add:
 
@@ -141,12 +152,24 @@ This avoids needing a separate source syntax for secrets.
 
 ## Semantics Changes
 
-### 5.  `eval` Rules
+### 5. Keep `eval` As Is
 
 Keep `eval` executable and permissive.
-Eval only cares about correctness of execution, not about security.
+`eval` only cares about correctness of execution, not about security.
+Do not change its context or rules in this step.
 
-#### `EvalAssign`
+Reason for this split:
+
+- colleagues can keep working on the core language and existing proofs without immediately rebasing onto the secrecy refactor
+- we reduce merge pressure on the operational semantics already in use
+- secrecy and constant-time reasoning can be developed in parallel as an additional layer
+
+### 6. Add a Secrecy-Aware Evaluator
+
+Add a second evaluator, for example `eval_sec`, which mirrors `eval` operationally but threads `sec_env`.
+This evaluator is where secrecy propagation lives.
+
+#### `EvalSecAssign`
 
 Current effect:
 
@@ -161,7 +184,7 @@ Meaning:
 
 - after `x <- e`, the security of `x` becomes the security of `e`
 
-#### `EvalAssignCall`
+#### `EvalSecAssignCall`
 
 Current effect:
 
@@ -182,23 +205,23 @@ Planned effect:
 
 This is the key place where secrecy enters execution modularly.
 
-#### `EvalSequence`
+#### `EvalSecSequence`
 
 - thread full context
 
-#### `EvalIfTrue` / `EvalIfFalse`
+#### `EvalSecIfTrue` / `EvalSecIfFalse`
 
 - same operational behavior
 - thread full context including `sec_env`
 
-#### `EvalWhileTrue` / `EvalWhileFalse`
+#### `EvalSecWhileTrue` / `EvalSecWhileFalse`
 
 - same operational behavior
 - thread full context including `sec_env`
 
 ## Constant-Time Checker
 
-### 6. Add a Second Judgment
+### 7. Add a Second Judgment
 
 Add a separate judgment, likely in `Security.v` or a new file if it grows.
 
@@ -256,13 +279,13 @@ Expect to need:
 
 ### 10. `src/examples/SimpleTraces.v`
 
-Update all examples to the new context shape.
+Update examples so that the plain `eval` examples can stay on the existing context shape, while secrecy-aware examples use the new context.
 
-Current examples use:
+Current plain-eval examples use:
 
 - `(v, trace)`
 
-Planned examples use:
+Planned secrecy-aware examples use:
 
 - `(v, se, trace)`
 
@@ -286,11 +309,11 @@ Possible additions:
 This week:
 
 1. Add `sec_level`, `sec_env`, `join_sec`, `sec_lookup`
-2. Extend `context` and update helpers/notions
+2. Add a separate secrecy-aware `context` and helper projections
 3. Add `interp_sec`
-4. Update `eval` rules to thread secrecy
-5. Update `AssignCall` to initialize callee secrecy from actual arguments
-6. Repair existing examples/proofs to new context shape
+4. Add a second evaluator that threads secrecy without changing the existing `eval`
+5. Update secrecy-aware `AssignCall` to initialize callee secrecy from actual arguments
+6. Repair or extend examples/proofs for the secrecy-aware context while keeping existing plain-eval examples stable where possible
 7. Add constant-time checker judgment
 8. Add small checker examples
 NExt week:
@@ -302,26 +325,32 @@ NExt week:
 The biggest proof/design hotspot will be `AssignCall`, because secrecy must move correctly across caller/callee boundaries.
 
 ### Existing proof scripts
-`SimpleTraces.v` uses automation that assumes contexts are pairs. That automation will need small updates.
+`SimpleTraces.v` uses automation that assumes contexts are pairs. Keeping `eval` unchanged reduces churn there, but secrecy-aware examples and lemmas will still need small updates.
 
 ### Separation of concerns
 Keep clear separation between:
 
 - execution semantics
+- secrecy-aware execution semantics
 - secrecy propagation
 - constant-time admissibility
 
 Do not fold all three into `eval`.
 
+## Parallel Work Note
+
+To support parallel work on the language, prefer the following short-term split:
+
+- keep the current `eval` untouched
+- add a second evaluator (`eval_sec`, or similar) for secrecy propagation
+- add the constant-time checker as a separate judgment on top
+
+If this layering works well, we can later decide whether the two evaluators should stay separate permanently or be refactored behind a shared abstraction.
+
 
 ## One Small Design Recommendation
 
-Do **not** change the object-language syntax to add secret declarations.
-
-Instead:
-
+We Don't change the object-language syntax to add secret declarations, as I naïvely thought, instead:
 - treat secrecy as part of the semantic interface of function inputs
 - initialize it at call boundaries from actual arguments
-
-That keeps the implementation small and aligned with the direction you prefer.
 
