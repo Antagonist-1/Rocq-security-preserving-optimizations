@@ -1,5 +1,6 @@
 Require Import Map.
 Require Import Language.Main.
+Require Import proofs.SecEnvProofs.
 Require Import examples.Programs.
 From Stdlib Require Import List.
 Import ListNotations.
@@ -54,19 +55,6 @@ Proof.
   cbn in H2.
   autorewrite with core in H2.
   discriminate.
-Qed.
-
-Lemma lookup_join_env : forall se1 se2 x,
-  sec_lookup (join_sec_env se1 se2) x = join_sec (sec_lookup se1 x) (sec_lookup se2 x).
-Proof.
-  intros se1 se2 x.
-  unfold sec_lookup, join_sec_env.
-  rewrite lookup_merge.
-  destruct (se1 $? x) as [l1|] eqn:H1;
-  destruct (se2 $? x) as [l2|] eqn:H2;
-  cbn; try reflexivity.
-  - destruct l1; reflexivity.
-  - destruct l2; reflexivity.
 Qed.
 
 (* `ct_cmd`: a public branch may be constant-time, but joining branch labels
