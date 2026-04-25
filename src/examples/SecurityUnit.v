@@ -29,6 +29,26 @@ Proof.
   econstructor; crush_security.
 Qed.
 
+(* `eval_sec`: overwriting a secret-labeled variable with a constant makes it Public. *)
+Example eval_sec_secret_overwritten_with_const_is_public :
+  eval_sec $0
+    (($0 $+ ("x", 7)), ($0 $+ ("x", Secret)), nil)
+    secret_overwritten_with_const
+    (($0 $+ ("x", 7) $+ ("x", 0)), ($0 $+ ("x", Secret) $+ ("x", Public)), nil).
+Proof.
+  econstructor; crush_security.
+Qed.
+
+(* `eval_sec`: overwriting a secret-labeled variable with a public variable makes it Public. *)
+Example eval_sec_secret_overwritten_with_public_var_is_public :
+  eval_sec $0
+    (($0 $+ ("x", 7) $+ ("flag", 42)), ($0 $+ ("x", Secret) $+ ("flag", Public)), nil)
+    secret_overwritten_with_public_var
+    (($0 $+ ("x", 7) $+ ("flag", 42) $+ ("x", 42)), ($0 $+ ("x", Secret) $+ ("flag", Public) $+ ("x", Public)), nil).
+Proof.
+  econstructor; crush_security.
+Qed.
+
 (* `ct_cmd`: branching on a public guard is accepted by the constant-time checker. *)
 Example ct_public_guard_program_ok :
   exists se',

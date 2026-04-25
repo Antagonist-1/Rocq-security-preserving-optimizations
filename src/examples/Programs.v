@@ -83,6 +83,12 @@ Definition simple_while :=
 Definition secret_copy :=
   Assign "x" (Var "secret").
 
+Definition secret_overwritten_with_const :=
+  Assign "x" (Const 0).
+
+Definition secret_overwritten_with_public_var :=
+  Assign "x" (Var "flag").
+
 Definition public_guard_program :=
   If (Var "flag")
     (Assign "x" (Const 1))
