@@ -336,11 +336,12 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       ct_cmd phi se c1 se1 ->
       ct_cmd phi se1 c2 se2 ->
       ct_cmd phi se (Sequence c1 c2) se2
-  | CtIf : forall se e thn els se_thn se_els,
+  | CtIf : forall se e thn els se_thn se_els se_join,
       interp_sec e se = Public ->
       ct_cmd phi se thn se_thn ->
       ct_cmd phi se els se_els ->
-      ct_cmd phi se (If e thn els) (join_sec_env se_thn se_els).
+      join_sec_env se_thn se_els = se_join ->
+      ct_cmd phi se (If e thn els) (se_join).
   (*
   | CtWhile : forall se se_inv e body,
       join_sec_env se se_inv = se_inv ->

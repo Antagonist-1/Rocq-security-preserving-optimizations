@@ -93,6 +93,11 @@ Definition secret_guard_program :=
     (Assign "x" (Const 1))
     (Assign "x" (Const 0)).
 
+Definition branch_join_program :=
+  If (Var "flag")
+    (Assign "x" (Var "secret"))
+    (Assign "x" (Const 0)).
+
 Definition the_answer_is_42 :=
   Sequence
     (Assign "x" (Var "oops"))
