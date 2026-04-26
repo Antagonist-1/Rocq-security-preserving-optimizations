@@ -13,3 +13,31 @@ Proof.
   - destruct l1; reflexivity.
   - destruct l2; reflexivity.
 Qed.
+
+Lemma join_sec_env_idempotent : forall se,
+  join_sec_env se se = se.
+Proof.
+  intros se.
+  apply fmap_ext. intro x.
+  unfold join_sec_env.
+  rewrite lookup_merge.
+  destruct (se $? x) as [level|] eqn:Hlookup;
+  cbn; [destruct level; reflexivity | reflexivity].
+Qed.
+
+Lemma join_sec_env_update_public_right : forall se x level,
+  se $? x = Some level ->
+  join_sec_env se (se $+ (x, Public)) = se.
+Proof.
+  intros se x level Hlookup.
+  apply fmap_ext. intro y.
+  unfold join_sec_env.
+  rewrite lookup_merge.
+  destruct (x ==v y) as [->|Hneq].
+  - rewrite Hlookup.
+    rewrite lookup_add_eq by reflexivity.
+    cbn. destruct level; reflexivity.
+  - rewrite lookup_add_ne by congruence.
+    destruct (se $? y) as [ly|] eqn:Hse;
+    cbn; [destruct ly; reflexivity | reflexivity].
+Qed.
