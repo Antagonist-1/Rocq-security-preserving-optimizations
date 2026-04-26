@@ -12,6 +12,7 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/examples/Programs.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Optimizations.v
 	$(ROCQC) $(ROCQFLAGS) src/proofs/SecEnvProofs.v
+	$(ROCQC) $(ROCQFLAGS) src/proofs/SecurityProofs.v
 	echo "Running Tests ..."
 	@for file in src/examples/*.v; do \
 		echo "Compiling $$file"; \
