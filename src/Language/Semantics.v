@@ -1,6 +1,7 @@
 Require Import Map.
 Require Import Language.Syntax.
 Require Import Language.Security.
+Require Import Lia.
 From Stdlib Require Import List.
 Import ListNotations.
 
@@ -220,6 +221,53 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
       eval phi ctx (While e body) (ctx t++ Branch false).
 
 
+(* The evaluation relation is deterministic: if a command can evaluate to two
+different contexts, those contexts must be the same. *)
+Theorem eval_deterministic : forall phi c ctx ctx1 ctx2,
+  eval phi ctx c ctx1 ->
+  eval phi ctx c ctx2 ->
+  ctx1 = ctx2.
+Proof.
+    Ltac invert_eval :=
+    match goal with
+    | H : eval _ _ _ _ |- _ => inversion H; subst; clear H
+    end.
+
+  intros phi c ctx ctx1 ctx2 Heval1.
+  revert ctx2.
+  induction Heval1; intros ? Heval2.
+  - (* Skip *)
+    invert_eval. auto.
+  - (* Assign *)
+    invert_eval. auto.
+  - (* AssignCall *)
+    invert_eval.
+    rewrite H in H7. inversion H7. subst.
+    apply IHHeval1 in H12. subst.
+    rewrite H2 in H13. inversion H13. auto.
+  - (* Sequence *)
+    invert_eval.
+    apply IHHeval1_1 in H2. subst.
+    apply IHHeval1_2 in H4. auto.
+  - (* IfTrue *)
+    invert_eval.
+    + apply IHHeval1 in H8. assumption.
+    + lia.
+  - (* IfFalse *)
+    invert_eval.
+    + lia.
+    + apply IHHeval1 in H6. assumption.
+  - (* WhileTrue *)
+    invert_eval.
+    + apply IHHeval1_1 in H6. subst.
+      apply IHHeval1_2 in H8. assumption.
+    + lia.
+  - (* WhileFalse *)
+    invert_eval.
+    + lia.
+    + reflexivity.
+Qed.
+
 
 (* 
    Augment the eval relation to also track security levels.
@@ -244,8 +292,6 @@ Inductive eval (phi: function_env): context -> cmd -> context -> Prop :=
    be propagated back to the assignee.
  *)
   
-
-
 
 Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> Prop :=
   | EvalSecSkip : forall ctx,
@@ -287,6 +333,57 @@ Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> P
       interp_arith e (sec_val_of ctx) = 0 ->
       eval_sec phi ctx (While e body) (ctx st++ Branch false).
 
+(* The evaluation relation is deterministic: if a command can evaluate to two
+different contexts, those contexts must be the same. *)
+
+(* A small inversion helper: it looks at the command in the goal first, then
+inverts the matching evaluation hypothesis.  That makes the proof script read
+like a case split on the command, not like a search through generated names. *)
+
+Theorem eval_sec_deterministic : forall phi c ctx ctx1 ctx2,
+  eval_sec phi ctx c ctx1 ->
+  eval_sec phi ctx c ctx2 ->
+  ctx1 = ctx2.
+Proof.
+  Ltac invert_eval_sec :=
+    match goal with
+    | H : eval_sec _ _ _ _ |- _ => inversion H; subst; clear H
+    end.
+
+  intros phi c ctx ctx1 ctx2 Heval1.
+  revert ctx2.
+  induction Heval1; intros ? Heval2.
+  - (* Skip *)
+    invert_eval_sec. auto.
+  - (* Assign *)
+    invert_eval_sec. auto.
+  - (* AssignCall *)
+    invert_eval_sec.
+    rewrite H in H10. inversion H10. subst.
+    apply IHHeval1 in H17. subst.
+    rewrite H4 in H18. inversion H18. subst. auto.
+  - (* Sequence *)
+    invert_eval_sec.
+    apply IHHeval1_1 in H2. subst.
+    apply IHHeval1_2 in H4. auto.
+  - (* IfTrue *)
+    invert_eval_sec.
+    + apply IHHeval1 in H8. assumption.
+    + lia.
+  - (* IfFalse *)
+    invert_eval_sec.
+    + lia.
+    + apply IHHeval1 in H6. assumption.
+  - (* WhileTrue *)
+    invert_eval_sec.
+    + apply IHHeval1_1 in H6. subst.
+      apply IHHeval1_2 in H8. assumption.
+    + lia.
+  - (* WhileFalse *)
+    invert_eval_sec.
+    + lia.
+    + reflexivity.
+Qed.
 
 (* Constant-time semantics.
 
