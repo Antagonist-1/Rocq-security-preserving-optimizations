@@ -5,6 +5,7 @@ ROCQFLAGS=-R src ""
 
 rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Map.v
+	$(ROCQC) $(ROCQFLAGS) src/VarSets.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Syntax.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Security.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Semantics.v

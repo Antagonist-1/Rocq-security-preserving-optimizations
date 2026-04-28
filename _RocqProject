@@ -1,5 +1,6 @@
 -R src ""
 src/Map.v
+src/VarSets.v
 src/Language/Syntax.v
 src/Language/Security.v
 src/Language/Semantics.v

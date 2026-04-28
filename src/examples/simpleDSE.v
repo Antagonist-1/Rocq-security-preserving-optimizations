@@ -3,38 +3,37 @@ Require Import Language.Optimizations.
 Require Import Language.Main.
 
 
-Goal opt_dse simple_assign "x" = simple_assign.
+Goal opt_dse simple_assign_p1 = simple_assign.
 Proof.
   reflexivity.
 Qed.
 
-Goal opt_dse simple_assign "y" = Skip.
+Goal opt_dse simple_assign_p2 = Skip.
 Proof.
   reflexivity.
 Qed.
 
-Goal opt_dse dead_assign "x" = ("x" <- 10).
+Goal opt_dse dead_assign_p = ("x" <- 10).
   reflexivity.
 Qed.
 
-Goal opt_dse  live_assign "y" =
+Goal opt_dse live_assign_p1 =
   ("x" <- 5;;
    "y" <- Var "x").
   reflexivity.
 Qed.
 
-Goal opt_dse  live_assign "z" =
+Goal opt_dse live_assign_p2 =
        Skip.
   reflexivity.
 Qed.
 
-
-Goal opt_dse  live_assign "x" =
+Goal opt_dse live_assign_p3 =
    ("x" <- 10).
   reflexivity.
 Qed.
 
-Goal opt_dse  live_in_condition "y" =
+Goal opt_dse live_in_condition_p =
   ("x" <- 5;;
    when (Var "x") then
      "y" <- 1
@@ -44,7 +43,7 @@ Goal opt_dse  live_in_condition "y" =
   reflexivity.
 Qed.
 
-Goal opt_dse  dead_before_if "x" =
+Goal opt_dse dead_before_if_p =
   (
    when (Var "cond") then
      "x" <- 1
@@ -54,7 +53,7 @@ Goal opt_dse  dead_before_if "x" =
   reflexivity.
 Qed.
 
-Goal opt_dse  dead_in_loop "n" =
+Goal opt_dse dead_in_loop_p =
   (
    while (Var "n") loop
      "n" <- Var "n" - 1
@@ -62,7 +61,7 @@ Goal opt_dse  dead_in_loop "n" =
   reflexivity.
 Qed.
 
-Goal opt_dse  chained_dead "y" =
+Goal opt_dse chained_dead_p =
   (
    "x" <- 3;;
    "y" <- Var "x").
@@ -70,23 +69,23 @@ Goal opt_dse  chained_dead "y" =
 Qed.
 
 
-Goal opt_dse while_issue1 "z" = while_issue1.
+Goal opt_dse while_issue1_p = while_issue1_body.
   reflexivity.
 Qed.
 
-Goal opt_dse while_issue2 "z" = while_issue2.
+Goal opt_dse while_issue2_p = while_issue2_body.
   reflexivity.
 Qed.
 
-Goal opt_dse while_issue3 "z" = while_issue3.
+Goal opt_dse while_issue3_p = while_issue3_body.
   reflexivity.
 Qed.
 
-Goal opt_dse while_issue4 "y" = while_issue4.
+Goal opt_dse while_issue4_p = while_issue4_body.
   reflexivity.
 Qed.
 
 (*We could possibly make DSE stronger, by detecting non-infinite, useless loops.
 but that seems a lot of work for not much result.
  *)
-Compute opt_dse FactBody "smth_else".
+Compute opt_dse (single_out_pgm FactBody "smth_else").
