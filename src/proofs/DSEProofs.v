@@ -16,34 +16,83 @@ Definition agree_on (S: var_set) (v1 v2: valuation) : Prop :=
 
 Lemma agree_on_refl: forall S v,
   agree_on S v v.
-Proof. Admitted.
+Proof. 
+  unfold agree_on.
+  reflexivity.
+Qed.
+
 
 Lemma agree_on_sym: forall S v1 v2,
   agree_on S v1 v2 -> agree_on S v2 v1.
-Proof. Admitted.
+Proof.
+  unfold agree_on.
+  intros.
+  apply eq_sym.
+  firstorder.
+Qed.
 
 Lemma agree_on_subset: forall S S' v1 v2,
   VarSet.Subset S' S ->
   agree_on S v1 v2 ->
   agree_on S' v1 v2.
-Proof. Admitted.
+Proof.
+  unfold agree_on, VarSet.Subset.
+  intros.
+  apply H0.
+  apply VarSet.mem_spec.
+  apply VarSet.mem_spec in H1.
+  apply H.
+  apply H1.
+Qed.
 
 (* x is not in S, so updating x doesn't affect agreement on S *)
 Lemma agree_on_update_out: forall S v x a,
   VarSet.mem x S = false ->
   agree_on S v (v $+ (x, a)).
-Proof. Admitted.
+Proof.
+  unfold agree_on.
+  intros.
+  destruct (VarSetProps.FM.eq_dec x x0).
+  - subst.
+    rewrite H in H0.
+    discriminate.
+  - rewrite lookup_add_ne.
+    + reflexivity.
+    + auto.
+Qed.
 
 (* Updating the same key on both sides preserves agreement *)
 Lemma agree_on_update_both: forall S v1 v2 x a,
   agree_on S v1 v2 ->
   agree_on S (v1 $+ (x, a)) (v2 $+ (x, a)).
-Proof. Admitted.
+Proof.
+  unfold agree_on.
+  intros.
+  destruct (VarSetProps.FM.eq_dec x x0).
+  - repeat rewrite lookup_add_eq; [reflexivity | assumption | assumption].
+  - repeat rewrite lookup_add_ne.
+    1: apply H; exact H0.
+    1,2 : auto.
+Qed.
+
 
 Lemma agree_on_remove_both: forall S v1 v2 x,
   agree_on S v1 v2 ->
   agree_on (VarSet.remove x S) v1 v2.
-Proof. Admitted.
+Proof.
+  unfold agree_on.
+  intros.
+  destruct (VarSetProps.FM.eq_dec x x0).
+  - subst.
+    exfalso.
+    rewrite VarSet.mem_spec in H0.
+    rewrite VarSet.remove_spec in H0.
+    tauto.
+  - apply H.
+    rewrite VarSet.mem_spec in *.
+    rewrite VarSet.remove_spec in H0.
+    tauto.
+Qed.
 
 (* ================================================================= *)
 (* Step 2: interp_arith only depends on vars_in_expr                 *)
@@ -147,7 +196,7 @@ Theorem opt_dse_sound: forall phi (pgm: program) ctx ctx',
   eval phi ctx (cmd_of pgm) ctx' ->
   exists ctx_opt,
     eval phi ctx (opt_dse pgm) ctx_opt /\
-    agree_on (output_of pgm) (val_of ctx') (val_of ctx_opt).
+    agree_on (output_of pgm) (val_of ctx') (val_of ctx_opt). (*all output vars are the same*)
 Proof.
   intros phi pgm ctx ctx' Heval.
   unfold opt_dse.
