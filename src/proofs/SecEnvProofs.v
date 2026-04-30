@@ -38,3 +38,31 @@ Lemma join_sec_public_els:
   sec_lookup (join_sec_env se1 se2) x = Public ->
   sec_lookup se2 x = Public.
 Proof. intros. apply join_sec_public in H. destruct H. assumption. Qed.
+
+Lemma join_sec_env_idempotent : forall se,
+  join_sec_env se se = se.
+Proof.
+  intros se.
+  apply fmap_ext. intro x.
+  unfold join_sec_env.
+  rewrite lookup_merge.
+  destruct (se $? x) as [level|] eqn:Hlookup;
+  cbn; [destruct level; reflexivity | reflexivity].
+Qed.
+
+Lemma join_sec_env_update_public_right : forall se x level,
+  se $? x = Some level ->
+  join_sec_env se (se $+ (x, Public)) = se.
+Proof.
+  intros se x level Hlookup.
+  apply fmap_ext. intro y.
+  unfold join_sec_env.
+  rewrite lookup_merge.
+  destruct (x ==v y) as [->|Hneq].
+  - rewrite Hlookup.
+    rewrite lookup_add_eq by reflexivity.
+    cbn. destruct level; reflexivity.
+  - rewrite lookup_add_ne by congruence.
+    destruct (se $? y) as [ly|] eqn:Hse;
+    cbn; [destruct ly; reflexivity | reflexivity].
+Qed.
