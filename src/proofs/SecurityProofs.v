@@ -123,5 +123,5 @@ Proof.
       unfold agree_on_public in *. intros param Hparam.
       apply Hmem.
       eapply join_sec_public_els. exact Hparam.
-    (* While case  is missing because it is not defined in the inductive yet *)
-Qed.
+  - admit. (* TODO: Prove the soundness of the while. *)
+    Admitted.
