@@ -14,6 +14,31 @@ Proof.
   - destruct l2; reflexivity.
 Qed.
 
+
+Lemma join_sec_public:
+  forall se1 se2 x,
+  sec_lookup (join_sec_env se1 se2) x = Public ->
+  sec_lookup se1 x = Public /\ sec_lookup se2 x = Public.
+Proof.
+  intros se1 se2 x Hjoin.
+  rewrite lookup_join_env in Hjoin.
+  destruct (sec_lookup se1 x) eqn:H1;
+  destruct (sec_lookup se2 x) eqn:H2;
+  cbn in Hjoin; try discriminate; split; reflexivity.
+Qed.
+
+Lemma join_sec_public_thn:
+  forall se1 se2 x,
+  sec_lookup (join_sec_env se1 se2) x = Public ->
+  sec_lookup se1 x = Public.
+Proof. intros. apply join_sec_public in H. destruct H. assumption. Qed.
+
+Lemma join_sec_public_els:
+  forall se1 se2 x,
+  sec_lookup (join_sec_env se1 se2) x = Public ->
+  sec_lookup se2 x = Public.
+Proof. intros. apply join_sec_public in H. destruct H. assumption. Qed.
+
 Lemma join_sec_env_idempotent : forall se,
   join_sec_env se se = se.
 Proof.
