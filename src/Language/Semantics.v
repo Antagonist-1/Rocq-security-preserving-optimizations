@@ -457,9 +457,10 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
 
 
 (* trace is independent of secrets (if proven from ct_cmd)*)
-Definition is_safe_pgm (pgm: program) : Prop :=
-  forall phi senv senv', 
-    ct_cmd phi senv (cmd_of pgm) senv'.
+Definition is_safe_pgm (pgm: program) (secrets: sec_env): Prop :=
+  forall phi, 
+  exists senv',
+    ct_cmd phi secrets (cmd_of pgm) senv'.
 
 
   
@@ -484,6 +485,6 @@ Definition opt_keeps_secrets_secret (opt : program -> program) : Prop :=
       2. doesn't change the value or sec_level of secrets, compared to the source program.
     *)
   Definition is_safe_opt (opt: program -> program) : Prop :=
-    forall (p: program),
-      (is_safe_pgm p -> is_safe_pgm (opt p)) /\ 
+    forall (p: program) (secrets: sec_env) ,
+      (is_safe_pgm p secrets -> is_safe_pgm (opt p) secrets) /\ 
       opt_keeps_secrets_secret opt.
