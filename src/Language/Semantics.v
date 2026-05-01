@@ -2,7 +2,7 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Syntax.
 Require Import Language.Security.
-Require Import Lia.
+From Stdlib Require Import Lia.
 From Stdlib Require Import List.
 Import ListNotations.
 
@@ -131,6 +131,9 @@ Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
 (*2 programs agree on public variables, with potentially different secrets *)
 Definition agree_on_public (se : sec_env) (v1 v2 : valuation) : Prop :=
   forall x, sec_lookup se x = Public -> v1 $? x = v2 $? x.
+
+Definition agree_on_secret (se : sec_env) (v1 v2 : valuation) : Prop :=
+  forall x, sec_lookup se x = Secret -> v1 $? x = v2 $? x.
 
 (* Another way is to say that two valuations are low-equivalent, meaning they agree on all public variables *)
 Definition low_equiv := agree_on_public.
@@ -451,3 +454,36 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       ct_cmd phi se_inv body se_body ->
       join_sec_env se_inv se_body = se_inv ->
       ct_cmd phi se (While e body) se_inv.
+
+
+(* trace is independent of secrets (if proven from ct_cmd)*)
+Definition is_safe_pgm (pgm: program) : Prop :=
+  forall phi senv senv', 
+    ct_cmd phi senv (cmd_of pgm) senv'.
+
+
+  
+(* A safe optimization does not change the values and sec_level of secrets*)
+
+  (* if both programs start with the same context (valuation+secrets),
+      1. the resulting set of secrets are the same (secrets propagated correctly)
+      2. AND both valuation agree on the value of secrets (all secure assigns are kept)
+  *)
+Definition opt_keeps_secrets_secret (opt : program -> program) : Prop := 
+  forall sctx sctx' sctx'' pgm pgm' phi,
+    opt pgm = pgm' ->
+    eval_sec phi sctx (cmd_of pgm) sctx' ->
+    eval_sec phi sctx (cmd_of pgm') sctx'' ->
+    forall x, (sec_of sctx') $? x = (sec_of sctx'') $? x /\
+    agree_on_secret (sec_of sctx') (sec_val_of sctx') (sec_val_of sctx'').
+    
+
+
+    (*A safe optimization:
+      1. transform a safe program into another safe program
+      2. doesn't change the value or sec_level of secrets, compared to the source program.
+    *)
+  Definition is_safe_opt (opt: program -> program) : Prop :=
+    forall (p: program),
+      (is_safe_pgm p -> is_safe_pgm (opt p)) /\ 
+      opt_keeps_secrets_secret opt.
