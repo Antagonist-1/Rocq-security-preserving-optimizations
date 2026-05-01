@@ -107,6 +107,18 @@ Definition branch_join_program :=
     (Assign "x" (Var "secret"))
     (Assign "x" (Const 0)).
 
+Definition secret_downgrade_loop :=
+  While (Var "flag")
+    (Assign "secret" (Const 0)).
+
+Definition secret_loop_program :=
+  While (Var "secret")
+    (Assign "x" (Const 1)).
+
+Definition public_to_secret_loop :=
+  While (Var "x")
+    (Assign "x" (Var "secret")).
+
 Definition the_answer_is_42 :=
   Sequence
     (Assign "x" (Var "oops"))

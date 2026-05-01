@@ -93,3 +93,122 @@ Proof.
   - repeat econstructor; crush_security.
   - split; rewrite lookup_join_env; crush_security.
 Qed.
+
+Example ct_simple_while_public_ok :
+  exists se',
+    ct_cmd $0
+      ($0 $+ ("x", Public))
+      simple_while
+      se'.
+Proof.
+  eexists.
+  eapply CtWhile.
+  - apply join_sec_env_idempotent.
+  - crush_security.
+  - econstructor. crush_security.
+  - apply (join_sec_env_update_public_right ($0 $+ ("x", Public)) "x" Public).
+    autorewrite with core; reflexivity.
+Qed.
+
+Example ct_secret_downgrade_loop_ok :
+  exists se',
+    ct_cmd $0
+      ($0 $+ ("flag", Public) $+ ("secret", Secret))
+      secret_downgrade_loop
+      se'.
+Proof.
+  eexists.
+  eapply CtWhile.
+  - apply join_sec_env_idempotent.
+  - crush_security.
+  - econstructor; crush_security. (* Body makes 'secret' Public *)
+  (* Preservation: join(Secret, Public) = Secret.
+     The invariant perfectly absorbs the downgraded variable! *)
+  - apply (join_sec_env_update_public_right ($0 $+ ("flag", Public) $+ ("secret", Secret)) "secret" Secret).
+    autorewrite with core; reflexivity.
+Qed.
+
+Example ct_fact_body_public_ok :
+  exists se',
+    ct_cmd Fact_env
+      ($0 $+ ("n", Public) $+ ("f", Public))
+      FactBody
+      se'.
+Proof.
+  eexists.
+  unfold FactBody.
+  eapply CtSequence.
+  - econstructor; crush_security. (* "f" <- 1 *)
+  - eapply CtWhile with (se_inv := $0 $+ ("n", Public) $+ ("f", Public) $+ ("f", Public)).
+    + apply join_sec_env_idempotent.
+    + crush_security.
+    + (* The body is a Sequence of two assignments *)
+      eapply CtSequence; econstructor; crush_security.
+    + cbn.
+      assert (
+        ($0 $+ ("n", Public) $+ ("f", Public) $+ ("f", Public) $+ ("f", Public) $+ ("n", Public))
+        = ($0 $+ ("n", Public) $+ ("f", Public) $+ ("f", Public))
+      ) as Hbody.
+      { maps_equal. }
+      rewrite Hbody.
+      apply join_sec_env_idempotent.
+Qed.
+
+Example ct_secret_loop_rejected :
+  ~ exists se',
+    ct_cmd $0
+      ($0 $+ ("secret", Secret))
+      secret_loop_program
+      se'.
+Proof.
+  (* Assume the checker somehow accepted this dangerous loop *)
+  intros [se' Hct].
+  inversion Hct; subst.
+  (* Simplify the public guard requirement *)
+  unfold interp_sec, sec_lookup in H2. cbn in H2.
+  (* We need to prove se_inv knows "secret" is Secret. We extract this fact
+  directly from the initial bound. *)
+  assert (Hleak: sec_lookup (join_sec_env ($0 $+ ("secret", Secret)) se') "secret" = sec_lookup se' "secret").
+  { rewrite H1. reflexivity. }
+  (* Evaluate the join on the left side using the helper lemma we just built! *)
+  rewrite lookup_join_env in Hleak.
+  unfold sec_lookup in Hleak at 1. autorewrite with core in *. cbn in *.
+  (* H2 is exactly the definition of `sec_lookup se' "secret" = Public`! *)
+  fold (sec_lookup se' "secret") in H2.
+  rewrite H2 in Hleak.
+  discriminate.
+Qed.
+
+Example ct_public_to_secret_loop_rejected :
+  ~ exists se',
+    ct_cmd $0
+      ($0 $+ ("secret", Secret) $+ ("x", Public))
+      public_to_secret_loop
+      se'.
+Proof.
+  (* Assume the checker accepted this mutating loop *)
+  intros [se' Hct].
+  (* Break open the While loop rule *)
+  inversion Hct; subst.
+  unfold interp_sec in H2; cbn in H2.
+  (* Prove that se' knows 'secret' is Secret (extracted from H1) *)
+  assert (Hsec: sec_lookup (join_sec_env ($0 $+ ("secret", Secret) $+ ("x", Public)) se') "secret" = sec_lookup se' "secret").
+  { rewrite H1. reflexivity. }
+  rewrite lookup_join_env in Hsec.
+  unfold sec_lookup in Hsec at 1. cbn in Hsec. autorewrite with core in Hsec.
+  (* Destruct forces Coq to realize se' "secret" MUST be Secret, otherwise the
+  join would be invalid. *)
+  destruct (sec_lookup se' "secret") eqn:Hsecret_val;
+  cbn in Hsec; [ discriminate |  ].
+  (* Break open the Assign rule inside the body *)
+  inversion H4; subst.
+  (* The preservation rule (H6) checks if the invariant survived. *)
+  assert (Hpres: sec_lookup (join_sec_env se' (se' $+ ("x", interp_sec (Var "secret") se'))) "x" = sec_lookup se' "x").
+  { rewrite H6. reflexivity. }
+  rewrite lookup_join_env in Hpres.
+  rewrite H2 in Hpres.
+  unfold interp_sec in Hpres. cbn in Hpres.
+  rewrite Hsecret_val in Hpres.
+  unfold sec_lookup in Hpres at 1. autorewrite with core in Hpres.
+  discriminate.
+Qed.
