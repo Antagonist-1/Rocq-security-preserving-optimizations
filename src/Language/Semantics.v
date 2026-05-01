@@ -1,4 +1,5 @@
 Require Import Map.
+Require Import VarSets.
 Require Import Language.Syntax.
 Require Import Language.Security.
 Require Import Lia.
@@ -39,6 +40,11 @@ Definition interp_binop (b: BinopName) (n1 n2: nat) :=
           ⟦Binop b e1 e2⟧ᵥ = a
 *)
  
+Definition program := (cmd * var_set)%type.
+
+Definition cmd_of (pgm: program) := fst pgm.
+Definition output_of (pgm: program) := snd pgm.
+
 Inductive trace_event := 
 | Branch: bool -> trace_event
 | MemWrite: var -> trace_event.

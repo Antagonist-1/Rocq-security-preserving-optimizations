@@ -2,12 +2,8 @@ Require Import Map.
 Require Import Language.Syntax.
 Require Import Language.Semantics.
 Require Import examples.Programs.
+Require Import VarSets.
 
-Require Import Stdlib.Structures.OrderedTypeEx.
-Require Import Stdlib.Structures.OrdersAlt.
-Require Import Stdlib.MSets.MSetWeakList.
-Require Import Stdlib.MSets.MSetFacts.
-Require Import Stdlib.MSets.MSetProperties.
 
 (* clean programs by removing skips after DSE *)
 Fixpoint opt_unskip (c: cmd) :  cmd :=
@@ -25,32 +21,6 @@ Fixpoint opt_unskip (c: cmd) :  cmd :=
   | While cond body => While cond (opt_unskip body)
   | _ => c
   end.
-
-(* VarSet represents sets of strings*)
-Module StringOT := Update_OT String_as_OT.
-Module VarSet := MSetWeakList.Make StringOT.
-Module VarSetFacts := MSetFacts.Facts VarSet.
-Module VarSetProps := MSetProperties.Properties VarSet.
-
-(*
-VarSet API:
-(* membership *)
-VarSet.mem x s        (* returns bool *)
-
-(* add/remove *)
-VarSet.add x s
-VarSet.remove x s
-
-(* union *)
-VarSet.union s1 s2
-
-VarSet.equal s1 s2    (* returns bool *)
-
-(* size *)
-VarSet.cardinal s
- *)
-
-Definition var_set := VarSet.t.
 
   (* All vars used in an expr *)
 Fixpoint vars_in_expr (e: expr) : var_set :=
@@ -140,6 +110,6 @@ Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
       While e (dse_helper body (liveness c out))
   end.
 
-Definition opt_dse (c: cmd) (result: var): cmd :=
-  opt_unskip (dse_helper c (VarSet.singleton result)).
+Definition opt_dse (pgm: program): cmd :=
+  opt_unskip (dse_helper (cmd_of pgm) (output_of pgm)).
 

@@ -1,5 +1,8 @@
 Require Import Map.
 Require Import Language.Main.
+Require Import VarSets.
+
+Definition single_out_pgm (c: cmd) (x: var) := (c, VarSet.singleton x).
 
 Example Times3Plus1Body :=
   ("n" <- "n" * 3 + 1).
@@ -130,17 +133,26 @@ Definition the_answer_is_42 :=
 
 (* Simple DSE programs *)
 
-Definition dead_assign :=
+Definition simple_assign_p1 := single_out_pgm simple_assign "x".
+Definition simple_assign_p2 := single_out_pgm simple_assign "y".
+
+
+Definition dead_assign_body :=
   ("x" <- 5;;
    "x" <- 10).
 
-Definition live_assign :=
+Definition dead_assign_p := single_out_pgm dead_assign_body "x".
+
+Definition live_assign_body :=
   ("x" <- 5;;
     "y" <- Var "x";;
     "x" <- 10).
 
+Definition live_assign_p1 := single_out_pgm live_assign_body "y".
+Definition live_assign_p2 := single_out_pgm live_assign_body "z".
+Definition live_assign_p3 := single_out_pgm live_assign_body "x".
 
-Definition live_in_condition :=
+Definition live_in_condition_body :=
   ("x" <- 5;;
    when (Var "x") then
      "y" <- 1
@@ -148,7 +160,9 @@ Definition live_in_condition :=
      "y" <- 0
    done).
 
-Definition dead_before_if :=
+Definition live_in_condition_p := single_out_pgm live_in_condition_body "y".
+
+Definition dead_before_if_body :=
   ("x" <- 5;;
    when (Var "cond") then
      "x" <- 1
@@ -156,40 +170,54 @@ Definition dead_before_if :=
      "x" <- 2
    done).
 
-Definition dead_in_loop :=
+Definition dead_before_if_p := single_out_pgm dead_before_if_body "x".
+
+Definition dead_in_loop_body :=
   ("tmp" <- 0;;
    while (Var "n") loop
      "tmp" <- Var "n";;
      "n" <- Var "n" - 1
    done).
 
-Definition chained_dead :=
+Definition dead_in_loop_p := single_out_pgm dead_in_loop_body "n".
+
+Definition chained_dead_body :=
   ("x" <- 1;;
    "x" <- 2;;
    "x" <- 3;;
    "y" <- Var "x").
 
+Definition chained_dead_p := single_out_pgm chained_dead_body "y".
+
 (*Variables in while condition should be live and propagate their liveness inside the while's body*)
-Definition while_issue1 :=
+Definition while_issue1_body :=
   ("x" <- 1;;
    while "y" loop
      "y" <- "x"
              done).
 
-Definition while_issue2 :=
+Definition while_issue1_p := single_out_pgm while_issue1_body "z".
+
+Definition while_issue2_body :=
   (while "x" loop
      "x" <- "y";;
      "y" <- "y" - 1
    done).
 
-Definition while_issue3 :=
+Definition while_issue2_p := single_out_pgm while_issue2_body "z".
+
+Definition while_issue3_body :=
   (while "x" loop
       "x" <- 5
     done).
 
-Definition while_issue4 :=
+Definition while_issue3_p := single_out_pgm while_issue3_body "z".
+
+Definition while_issue4_body :=
   ("y" <- 10;;
   while "x" loop
     "y" <- "5";;
     "x" <- "x" - 1
   done).
+
+Definition while_issue4_p := single_out_pgm while_issue4_body "y".
