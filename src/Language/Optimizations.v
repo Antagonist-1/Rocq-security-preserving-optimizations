@@ -110,6 +110,6 @@ Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
       While e (dse_helper body (liveness c out))
   end.
 
-Definition opt_dse (pgm: program): cmd :=
-  opt_unskip (dse_helper (cmd_of pgm) (output_of pgm)).
+Definition opt_dse (pgm: program): program :=
+  (opt_unskip (dse_helper (cmd_of pgm) (output_of pgm)), output_of pgm).
 
