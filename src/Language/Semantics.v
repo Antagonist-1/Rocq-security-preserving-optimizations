@@ -485,6 +485,6 @@ Definition opt_keeps_secrets_secret (opt : program -> program) : Prop :=
       2. doesn't change the value or sec_level of secrets, compared to the source program.
     *)
   Definition is_safe_opt (opt: program -> program) : Prop :=
-    forall (p: program) (secrets: sec_env) ,
-      (is_safe_pgm p secrets -> is_safe_pgm (opt p) secrets) /\ 
+    (forall (p: program) (secrets: sec_env) ,
+      is_safe_pgm p secrets -> is_safe_pgm (opt p) secrets) /\ 
       opt_keeps_secrets_secret opt.
