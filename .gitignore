@@ -5,4 +5,4 @@ res/.DS_Store
 **.vo
 **.vok
 **.vos
-/.lia.cache
+.lia.cache
