@@ -539,7 +539,7 @@ Proof.
 Theorem opt_dse_sound: forall phi (pgm: program) ctx ctx',
   eval phi ctx (cmd_of pgm) ctx' ->
   exists ctx_opt,
-    eval phi ctx (opt_dse pgm) ctx_opt /\
+    eval phi ctx (cmd_of (opt_dse pgm)) ctx_opt /\
     agree_on (output_of pgm) (val_of ctx') (val_of ctx_opt). (*all output vars are the same*)
 Proof.
   intros phi pgm ctx ctx' Heval.
