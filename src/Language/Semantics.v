@@ -446,8 +446,13 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       join_sec_env se_thn se_els = se_join ->
       ct_cmd phi se (If e thn els) (se_join)
   | CtWhile : forall se se_inv se_body e body,
+      (* Ensures the invariant covers all starting secrets. *)
       join_sec_env se se_inv = se_inv ->
+      (* The loop condition must evaluate to Public under the invariant. *)
       interp_sec e se_inv = Public ->
+      (* The body executes under the assumptions of the invariant. *)
       ct_cmd phi se_inv body se_body ->
+      (* Guarantees the body cannot mutate a variable into a Secret if the
+      invariant expected it to be Public. *)
       join_sec_env se_inv se_body = se_inv ->
       ct_cmd phi se (While e body) se_inv.
