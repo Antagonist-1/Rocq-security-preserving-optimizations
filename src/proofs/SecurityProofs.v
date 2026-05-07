@@ -199,3 +199,53 @@ Proof.
         cbn in *.
         eauto.
 Qed.
+
+(* Two security contexts agree if they have the same values AND the same 
+   dynamic security labels for all statically public variables. *)
+Definition agree_on_public_sec_ctx (se_static : sec_env) (ctx1 ctx2 : sec_context) : Prop :=
+  (* 1. The valuations agree on public variables *)
+  agree_on_public se_static (sec_val_of ctx1) (sec_val_of ctx2) /\
+  (* 2. The dynamic security environments agree on public variables *)
+  (forall x, sec_lookup se_static x = Public -> 
+             sec_lookup (sec_of ctx1) x = sec_lookup (sec_of ctx2) x).
+
+(* If two dynamic environments agree on statically public variables, then they
+   will compute the exact same dynamic label for any statically public
+   expression. *)
+Lemma interp_sec_dynamic_agree : forall e se se_dyn1 se_dyn2,
+  (forall x, sec_lookup se x = Public -> sec_lookup se_dyn1 x = sec_lookup se_dyn2 x) ->
+  interp_sec e se = Public ->
+  interp_sec e se_dyn1 = interp_sec e se_dyn2.
+Proof.
+  induction e; intros se se_dyn1 se_dyn2 Hagree Hpub; cbn in *.
+  - (* Const *) reflexivity.
+  - (* Var *) apply Hagree. exact Hpub.
+  - (* Binop *)
+    destruct (interp_sec e1 se) eqn:He1;
+    destruct (interp_sec e2 se) eqn:He2;
+    cbn in Hpub; try discriminate.
+    rewrite (IHe1 se se_dyn1 se_dyn2 Hagree eq_refl).
+    rewrite (IHe2 se se_dyn1 se_dyn2 Hagree eq_refl).
+    reflexivity.
+Qed.
+
+
+Definition non_inference_sec (phi: function_env) (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
+  forall ctx1_in ctx2_in ctx1_out ctx2_out,
+    (* If the initial contexts agree on public data and labels... *)
+    agree_on_public_sec_ctx se_static ctx1_in ctx2_in ->
+    (* ...and they start with identical traces... *)
+    sec_trace_of ctx1_in = sec_trace_of ctx2_in ->
+    (* ...and they both evaluate the command... *)
+    eval_sec phi ctx1_in c ctx1_out ->
+    eval_sec phi ctx2_in c ctx2_out ->
+    (* ...then their output traces must be identical... *)
+    sec_trace_of ctx1_out = sec_trace_of ctx2_out /\ 
+    (* ...and their output contexts must still agree on public data and labels. *)
+    agree_on_public_sec_ctx se_static_out ctx1_out ctx2_out.
+
+    Theorem ct_cmd_soundness_sec : forall phi se c se_out,
+  ct_cmd phi se c se_out ->
+  non_inference_sec phi se c se_out.
+  Proof.
+  Admitted.
