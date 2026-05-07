@@ -45,6 +45,35 @@ Proof.
     reflexivity.
 Qed.
 
+(* Declare two helper lemmas to reason about loop invariants *)
+
+(* If two valuations agree on public before executing an iteration of a
+loop, then they agree on the loop invariant environment (se_inv) *)
+Lemma agree_on_public_inv : forall se se_inv v1 v2,
+  join_sec_env se se_inv = se_inv ->
+  agree_on_public se v1 v2 ->
+  agree_on_public se_inv v1 v2.
+Proof.
+  intros se se_inv v1 v2 Hjoin Hagree.
+  unfold agree_on_public in *. intros x Hpub.
+  apply Hagree.
+  apply join_sec_public_thn with se_inv.
+  rewrite Hjoin. exact Hpub.
+Qed.
+(* If two valuations agree on the output of the body of a loop, then they
+agree on the loop invariant environment (se_inv) *)
+Lemma agree_on_public_body_inv : forall se_inv se_body v1 v2,
+  join_sec_env se_inv se_body = se_inv ->
+  agree_on_public se_body v1 v2 ->
+  agree_on_public se_inv v1 v2.
+Proof.
+  intros se_inv se_body v1 v2 Hjoin Hagree.
+  unfold agree_on_public in *. intros x Hpub.
+  apply Hagree.
+  apply join_sec_public_els with se_inv.
+  rewrite Hjoin. exact Hpub.
+Qed.
+
 
 (* A program that is constant time according to our definition should satisfy
 non-inference. *)
@@ -125,36 +154,6 @@ Proof.
       apply Hmem.
       eapply join_sec_public_els. exact Hpub.
   - (* While *)
-
-    (* Declare two helper lemmas to reason about loop invariants *)
-
-    (* If two valuations agree on public before executing an iteration of a
-    loop, then they agree on the loop invariant environment (se_inv) *)
-    Lemma agree_on_public_inv : forall se se_inv v1 v2,
-      join_sec_env se se_inv = se_inv ->
-      agree_on_public se v1 v2 ->
-      agree_on_public se_inv v1 v2.
-    Proof.
-      intros se se_inv v1 v2 Hjoin Hagree.
-      unfold agree_on_public in *. intros x Hpub.
-      apply Hagree.
-      apply join_sec_public_thn with se_inv.
-      rewrite Hjoin. exact Hpub.
-    Qed.
-    (* If two valuations agree on the output of the body of a loop, then they
-    agree on the loop invariant environment (se_inv) *)
-    Lemma agree_on_public_body_inv : forall se_inv se_body v1 v2,
-      join_sec_env se_inv se_body = se_inv ->
-      agree_on_public se_body v1 v2 ->
-      agree_on_public se_inv v1 v2.
-    Proof.
-      intros se_inv se_body v1 v2 Hjoin Hagree.
-      unfold agree_on_public in *. intros x Hpub.
-      apply Hagree.
-      apply join_sec_public_els with se_inv.
-      rewrite Hjoin. exact Hpub.
-    Qed.
-
     (* The initial valuations agree on the loop invariant environment *)
     assert (Hagree_inv: agree_on_public se_inv v1 v2).
     { eapply agree_on_public_inv; eauto. }
