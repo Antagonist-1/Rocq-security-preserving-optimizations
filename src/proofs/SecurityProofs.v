@@ -224,8 +224,6 @@ Proof.
     destruct (interp_sec e1 se) eqn:He1;
     destruct (interp_sec e2 se) eqn:He2;
     cbn in Hpub; try discriminate.
-    rewrite (IHe1 se se_dyn1 se_dyn2 Hagree eq_refl).
-    rewrite (IHe2 se se_dyn1 se_dyn2 Hagree eq_refl).
     rewrite (IHe1 se se_dyn1 se_dyn2 Hagree He1).
     rewrite (IHe2 se se_dyn1 se_dyn2 Hagree He2).
     reflexivity.
@@ -246,8 +244,214 @@ Definition non_inference_sec (phi: function_env) (se_static: sec_env) (c: cmd) (
     (* ...and their output contexts must still agree on public data and labels. *)
     agree_on_public_sec_ctx se_static_out ctx1_out ctx2_out.
 
-    Theorem ct_cmd_soundness_sec : forall phi se c se_out,
+
+(* --- Helper Lemmas for If --- *)
+
+Lemma agree_on_public_sec_ctx_join_thn : forall se_thn se_els ctx1 ctx2,
+  (* If two contexts agree on public data and labels for "then" branch env... *)
+  agree_on_public_sec_ctx se_thn ctx1 ctx2 ->
+  (* ...then they agree on public data and labels for the joined environment. *)
+  agree_on_public_sec_ctx (join_sec_env se_thn se_els) ctx1 ctx2.
+Proof.
+  intros se_thn se_els ctx1 ctx2 [Hval Hdyn].
+  split; intros x Hpub.
+  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+    apply Hval. exact Hthn.
+  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+    apply Hdyn. exact Hthn.
+Qed.
+
+Lemma agree_on_public_sec_ctx_join_els : forall se_thn se_els ctx1 ctx2,
+  (* If two contexts agree on public data and labels for "else" branch env... *)
+  agree_on_public_sec_ctx se_els ctx1 ctx2 ->
+  (* ...then they agree on public data and labels for the joined environment. *)
+  agree_on_public_sec_ctx (join_sec_env se_thn se_els) ctx1 ctx2.
+Proof.
+  intros se_thn se_els ctx1 ctx2 [Hval Hdyn].
+  split; intros x Hpub.
+  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+    apply Hval. exact Hels.
+  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+    apply Hdyn. exact Hels.
+Qed.
+
+(* --- Helper Lemmas for While --- *)
+Lemma agree_on_public_sec_ctx_inv : forall se se_inv ctx1 ctx2,
+  join_sec_env se se_inv = se_inv ->
+  (* If two contexts agree on public data and labels for the original env... *)
+  agree_on_public_sec_ctx se ctx1 ctx2 ->
+  (* ...then they agree on public data and labels for the loop invariant env. *)
+  agree_on_public_sec_ctx se_inv ctx1 ctx2.
+Proof.
+  intros se se_inv ctx1 ctx2 Hjoin [Hval Hdyn].
+  split; intros x Hpub.
+  - apply Hval. eapply join_sec_public_thn. rewrite Hjoin. exact Hpub.
+  - apply Hdyn. eapply join_sec_public_thn. rewrite Hjoin. exact Hpub.
+Qed.
+
+Lemma agree_on_public_sec_ctx_body_inv : forall se_inv se_body ctx1 ctx2,
+  join_sec_env se_inv se_body = se_inv ->
+  (* If two contexts agree on public data and labels for the body env... *)
+  agree_on_public_sec_ctx se_body ctx1 ctx2 ->
+  (* ...then they agree on public data and labels for the loop invariant env. *)
+  agree_on_public_sec_ctx se_inv ctx1 ctx2.
+Proof.
+  intros se_inv se_body ctx1 ctx2 Hjoin [Hval Hdyn].
+  split; intros x Hpub.
+  - apply Hval. eapply join_sec_public_els. rewrite Hjoin. exact Hpub.
+  - apply Hdyn. eapply join_sec_public_els. rewrite Hjoin. exact Hpub.
+Qed.
+
+Lemma while_soundness_sec : forall phi se_inv e body se_body,
+  interp_sec e se_inv = Public ->
+  ct_cmd phi se_inv body se_body ->
+  non_inference_sec phi se_inv body se_body ->
+  join_sec_env se_inv se_body = se_inv ->
+  non_inference_sec phi se_inv (While e body) se_inv.
+Proof.
+  intros phi se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
+  unfold non_inference_sec.
+  intros ctx1_in ctx2_in ctx1_out ctx2_out Hagree_inv Htrace_in Heval1.
+
+  revert ctx2_in ctx2_out Htrace_in Hagree_inv.
+  dependent induction Heval1; intros ctx2_in ctx2_out Htrace_in Hagree_inv Heval2.
+
+  - (* EvalSecWhileTrue *)
+    inversion Heval2; subst; clear Heval2.
+    + (* Case 1: Both True *)
+      assert (Htrace_branched: sec_trace_of (ctx st++ Branch true) = sec_trace_of (ctx2_in st++ Branch true))
+        by (cbn; rewrite Htrace_in; reflexivity).
+
+      (* Traces don't affect valuations/labels, exact Hagree_inv works *)
+      assert (Hagree_branched: agree_on_public_sec_ctx se_inv (ctx st++ Branch true) (ctx2_in st++ Branch true))
+        by exact Hagree_inv.
+
+      edestruct Hni_body as [Htrace_body Hagree_body]; eauto.
+
+      assert (Hagree_inv_after: agree_on_public_sec_ctx se_inv ctx' ctx'0).
+      { eapply agree_on_public_sec_ctx_body_inv; eauto. }
+
+      edestruct IHHeval1_2 as [Htrace_loop Hagree_loop]; eauto.
+
+    + (* Case 2: True / False (Contradiction) *)
+      cbn in *.
+      assert (Hcond: interp_arith e (sec_val_of ctx) = interp_arith e (sec_val_of ctx2_in)).
+      { destruct Hagree_inv as [Hval _]. eapply interp_sec_public_agree; eauto. }
+      congruence.
+
+  - (* EvalSecWhileFalse *)
+    inversion Heval2; subst; clear Heval2.
+    + (* Case 3: False / True (Contradiction) *)
+      cbn in *.
+      assert (Hcond: interp_arith e (sec_val_of ctx) = interp_arith e (sec_val_of ctx2_in)).
+      { destruct Hagree_inv as [Hval _]. eapply interp_sec_public_agree; eauto. }
+      congruence.
+
+    + (* Case 4: False / False *)
+      split.
+      * cbn. rewrite Htrace_in. reflexivity.
+      * exact Hagree_inv.
+Qed.
+
+
+Theorem ct_cmd_soundness_sec : forall phi se c se_out,
   ct_cmd phi se c se_out ->
   non_inference_sec phi se c se_out.
-  Proof.
-  Admitted.
+Proof.
+  Ltac invert_evals_sec :=
+    inversion Heval1; inversion Heval2; subst.
+
+  Ltac resolve_sec_update x :=
+    intros param Hparam; cbn in *; destruct (x ==v param);
+    [ subst;
+      unfold sec_lookup in *;
+      try rewrite lookup_add_eq in Hparam by reflexivity;
+      repeat rewrite lookup_add_eq by reflexivity
+    | unfold sec_lookup in *;
+      try rewrite lookup_add_ne in Hparam by congruence;
+      repeat rewrite lookup_add_ne by congruence;
+      fold sec_lookup in * ].
+
+  intros phi se c se_out Hct.
+  unfold non_inference_sec.
+
+  induction Hct;
+    intros ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
+
+  - (* CtSkip *)
+    invert_evals_sec.
+    split; assumption.
+
+  - (* CtAssign *)
+    invert_evals_sec.
+    split; [assumption |].
+
+    destruct Hagree as [Hval_agree Hdyn_agree].
+    unfold agree_on_public_sec_ctx, agree_on_public in *.
+    split.
+
+    + (* Part 1: Prove values agree *)
+      resolve_sec_update x.
+      * apply f_equal. eapply interp_sec_public_agree; eauto.
+      * apply Hval_agree. exact Hparam.
+
+    + (* Part 2: Prove dynamic labels agree *)
+      resolve_sec_update x.
+      * eapply interp_sec_dynamic_agree; eauto.
+      * apply Hdyn_agree. exact Hparam.
+
+  - (* CtAssignCall *) admit.
+  - (* CtSequence *)
+    inversion Heval1; inversion Heval2; subst; clear Heval1 Heval2.
+    (* IHHct1 tells us that after executing c1, the intermediate contexts
+       (ctx1 and ctx0) will agree on se1 and have identical traces. *)
+    edestruct IHHct1 as [Htrace_mid Hagree_mid]; eauto.
+  - (* CtIf *)
+    (* 1. Prove the guard evaluates equally in both contexts *)
+    assert (Hcond: interp_arith e (sec_val_of ctx1_in) = interp_arith e (sec_val_of ctx2_in)).
+    { destruct Hagree as [Hval _]. eapply interp_sec_public_agree; eauto. }
+
+    invert_evals_sec.
+
+    + (* Case 1: True / True *)
+      (* Traces append the branch decision *)
+      assert (Htrace_branched: sec_trace_of (ctx1_in st++ Branch true) = sec_trace_of (ctx2_in st++ Branch true))
+        by (cbn; rewrite Htrace; reflexivity).
+
+      (* Explicitly prove branched agreement *)
+      assert (Hagree_branched: agree_on_public_sec_ctx se (ctx1_in st++ Branch true) (ctx2_in st++ Branch true))
+        by exact Hagree.
+
+      (* Force Coq to use the branched contexts instead of guessing *)
+      edestruct (IHHct1 (ctx1_in st++ Branch true) (ctx2_in st++ Branch true) ctx1_out ctx2_out) as [Htrace_thn Hagree_thn]; eauto.
+
+      split; [exact Htrace_thn |].
+      eapply agree_on_public_sec_ctx_join_thn; eauto.
+
+    + (* Case 2: True / False (Contradiction) *)
+      cbn in *. congruence.
+
+    + (* Case 3: False / True (Contradiction) *)
+      cbn in *. congruence.
+
+    + (* Case 4: False / False *)
+      assert (Htrace_branched: sec_trace_of (ctx1_in st++ Branch false) = sec_trace_of (ctx2_in st++ Branch false))
+        by (cbn; rewrite Htrace; reflexivity).
+
+      (* Explicitly prove branched agreement *)
+      assert (Hagree_branched: agree_on_public_sec_ctx se (ctx1_in st++ Branch false) (ctx2_in st++ Branch false))
+        by exact Hagree.
+
+      (* Force Coq to use the branched contexts instead of guessing *)
+      edestruct (IHHct2 (ctx1_in st++ Branch false) (ctx2_in st++ Branch false) ctx1_out ctx2_out) as [Htrace_els Hagree_els]; eauto.
+
+      split; [exact Htrace_els |].
+      eapply agree_on_public_sec_ctx_join_els; eauto.
+
+  - (* CtWhile *)
+    (* Cast the starting agreement to the loop invariant *)
+    assert (Hagree_inv: agree_on_public_sec_ctx se_inv ctx1_in ctx2_in).
+    { eapply agree_on_public_sec_ctx_inv; eauto. }
+
+    eapply while_soundness_sec with (se_body := se_body); eauto.
+Admitted.
