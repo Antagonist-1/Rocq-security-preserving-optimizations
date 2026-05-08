@@ -1,6 +1,7 @@
 Require Import Map.
 Require Import Language.Main.
 Require Import proofs.SecEnvProofs.
+Require Import Coq.Program.Equality.
 
 (* If two valuations agree on public data, then running the same program on them
 should produce the same trace.
@@ -42,6 +43,35 @@ Proof.
     rewrite (IHe1 se v1 v2 Hagree Hsec1).
     rewrite (IHe2 se v1 v2 Hagree Hsec2).
     reflexivity.
+Qed.
+
+(* Declare two helper lemmas to reason about loop invariants *)
+
+(* If two valuations agree on public before executing an iteration of a
+loop, then they agree on the loop invariant environment (se_inv) *)
+Lemma agree_on_public_inv : forall se se_inv v1 v2,
+  join_sec_env se se_inv = se_inv ->
+  agree_on_public se v1 v2 ->
+  agree_on_public se_inv v1 v2.
+Proof.
+  intros se se_inv v1 v2 Hjoin Hagree.
+  unfold agree_on_public in *. intros x Hpub.
+  apply Hagree.
+  apply join_sec_public_thn with se_inv.
+  rewrite Hjoin. exact Hpub.
+Qed.
+(* If two valuations agree on the output of the body of a loop, then they
+agree on the loop invariant environment (se_inv) *)
+Lemma agree_on_public_body_inv : forall se_inv se_body v1 v2,
+  join_sec_env se_inv se_body = se_inv ->
+  agree_on_public se_body v1 v2 ->
+  agree_on_public se_inv v1 v2.
+Proof.
+  intros se_inv se_body v1 v2 Hjoin Hagree.
+  unfold agree_on_public in *. intros x Hpub.
+  apply Hagree.
+  apply join_sec_public_els with se_inv.
+  rewrite Hjoin. exact Hpub.
 Qed.
 
 
@@ -105,9 +135,9 @@ Proof.
     + (* Case 1: True / True *)
       edestruct IHHct1 as [Htrace Hmem]; eauto.
       split; [exact Htrace |].
-      unfold agree_on_public in *. intros param Hparam.
+      unfold agree_on_public in *. intros x Hpub.
       apply Hmem. (* This Hmem comes from IHHct2, so it uses se_els *)
-      eapply join_sec_public_thn. exact Hparam.
+      eapply join_sec_public_thn. exact Hpub.
     + (* Case 2: True / False (IMPOSSIBLE) *)
       cbn in *.
       rewrite H14 in Hcond.
@@ -120,8 +150,52 @@ Proof.
       edestruct IHHct2 as [Htrace Hmem]; eauto.
       split; [exact Htrace |].
       (* Memory safety for the joined environment *)
-      unfold agree_on_public in *. intros param Hparam.
+      unfold agree_on_public in *. intros x Hpub.
       apply Hmem.
-      eapply join_sec_public_els. exact Hparam.
-  - admit. (* TODO: Prove the soundness of the while. *)
-    Admitted.
+      eapply join_sec_public_els. exact Hpub.
+  - (* While *)
+    (* The initial valuations agree on the loop invariant environment *)
+    assert (Hagree_inv: agree_on_public se_inv v1 v2).
+    { eapply agree_on_public_inv; eauto. }
+    clear Hagree.
+
+    revert v2 final_v2 trace2 Hagree_inv Heval2.
+    dependent induction Heval1.
+
+    + (* EvalWhileTrue *)
+      intros v2 final_v2 trace2 Hagree_inv Heval2.
+      inversion Heval2; subst; clear Heval2.
+      * (* Case 1: Both take True branch *)
+        cbn in *.
+        destruct ctx' as [v1' t1'].
+        match goal with
+        | H : eval phi _ body ?ctx2' |- _ => destruct ctx2' as [v2' t2']
+        end.
+
+        edestruct IHHct as [Htrace_body Hmem_body]; eauto.
+        subst t2'.
+
+        assert (Hagree_inv_after: agree_on_public se_inv v1' v2').
+        { eapply agree_on_public_body_inv; eauto. }
+        eauto.
+
+      * (* Case 2: Contradiction - v1 True, v2 False *)
+        cbn in *.
+        (* inversion unified v2 with final_v2 because EvalWhileFalse doesn't change the valuation *)
+        assert (Hcond: interp_arith e v1 = interp_arith e final_v2).
+        {eapply interp_sec_public_agree; eauto. }
+        congruence.
+
+    + (* EvalWhileFalse *)
+      intros v2 final_v2 trace2 Hagree_inv Heval2.
+      inversion Heval2; subst; clear Heval2.
+      * (* Case 3: Contradiction - v1 False, v2 True *)
+        cbn in *.
+        (* inversion unified v1 with final_v1 because EvalWhileFalse doesn't change the valuation *)
+        assert (Hcond: interp_arith e final_v1 = interp_arith e v2) by (eapply interp_sec_public_agree; eauto).
+        congruence.
+
+      * (* Case 4: Both take False branch and exit *)
+        cbn in *.
+        eauto.
+Qed.
