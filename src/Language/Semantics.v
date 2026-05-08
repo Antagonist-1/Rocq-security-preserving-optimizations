@@ -456,12 +456,29 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       ct_cmd phi se (While e body) se_inv.
 
 
-(* trace is independent of secrets (if proven from ct_cmd)*)
-Definition is_safe_pgm (pgm: program) (secrets: sec_env): Prop :=
-  forall phi, 
-  exists senv',
-    ct_cmd phi secrets (cmd_of pgm) senv'.
 
+(* If two valuations agree on public data, then running the same program on them
+should produce the same trace.
+Note 1: The initial trace has to be nonempty. This is necessary to prove the
+sequence case, as the second statement won't always start with an empty trace.
+Note 2: Also for the sequence proof, we have to strengthen the definition by
+saying that the resulting context agrees on public variables, as in the sequence
+case, the second statement doesn't start with the same context.
+In both cases, we only strengthen the definition, so it is not a problem.
+ *)
+Definition non_inference (phi: function_env) (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
+  forall v1 v2 t_in final_v1 final_v2 trace1 trace2,
+    agree_on_public se v1 v2 ->
+    eval phi (v1, t_in) c (final_v1, trace1) ->
+    eval phi (v2, t_in) c (final_v2, trace2) ->
+    trace1 = trace2 /\ agree_on_public se_out final_v1 final_v2.
+
+
+
+(* trace is independent of secrets *)
+Definition is_safe_pgm (phi: function_env) (pgm: program) (secrets: sec_env): Prop :=
+  exists secrets',
+    non_inference phi secrets (cmd_of pgm) secrets'.
 
   
 (* A safe optimization does not change the values and sec_level of secrets*)
@@ -484,7 +501,7 @@ Definition opt_keeps_secrets_secret (opt : program -> program) : Prop :=
       1. transform a safe program into another safe program
       2. doesn't change the value or sec_level of secrets, compared to the source program.
     *)
-  Definition is_safe_opt (opt: program -> program) : Prop :=
+  Definition is_safe_opt (phi: function_env) (opt: program -> program): Prop :=
     (forall (p: program) (secrets: sec_env) ,
-      is_safe_pgm p secrets -> is_safe_pgm (opt p) secrets) /\ 
+      is_safe_pgm phi p secrets -> is_safe_pgm phi (opt p) secrets) /\ 
       opt_keeps_secrets_secret opt.
