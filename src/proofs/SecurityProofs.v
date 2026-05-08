@@ -226,6 +226,8 @@ Proof.
     cbn in Hpub; try discriminate.
     rewrite (IHe1 se se_dyn1 se_dyn2 Hagree eq_refl).
     rewrite (IHe2 se se_dyn1 se_dyn2 Hagree eq_refl).
+    rewrite (IHe1 se se_dyn1 se_dyn2 Hagree He1).
+    rewrite (IHe2 se se_dyn1 se_dyn2 Hagree He2).
     reflexivity.
 Qed.
 
