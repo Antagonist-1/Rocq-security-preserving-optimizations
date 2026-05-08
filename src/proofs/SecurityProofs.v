@@ -3,22 +3,6 @@ Require Import Language.Main.
 Require Import proofs.SecEnvProofs.
 Require Import Coq.Program.Equality.
 
-(* If two valuations agree on public data, then running the same program on them
-should produce the same trace.
-Note 1: The initial trace has to be nonempty. This is necessary to prove the
-sequence case, as the second statement won't always start with an empty trace.
-Note 2: Also for the sequence proof, we have to strengthen the definition by
-saying that the resulting context agrees on public variables, as in the sequence
-case, the second statement doesn't start with the same context.
-In both cases, we only strengthen the definition, so it is not a problem.
- *)
-Definition non_inference (phi: function_env) (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
-  forall v1 v2 t_in final_v1 final_v2 trace1 trace2,
-    agree_on_public se v1 v2 ->
-    eval phi (v1, t_in) c (final_v1, trace1) ->
-    eval phi (v2, t_in) c (final_v2, trace2) ->
-    trace1 = trace2 /\ agree_on_public se_out final_v1 final_v2.
-
 
 (* If two valuations agree on public data, then the interpretation of any public
 expression should be the same. *)
