@@ -400,7 +400,54 @@ Proof.
       * eapply interp_sec_dynamic_agree; eauto.
       * apply Hdyn_agree. exact Hparam.
 
-  - (* CtAssignCall *) admit.
+  - (* CtAssignCall *)
+    invert_evals_sec.
+
+    (* Unify the function environment lookups *)
+    rewrite H in H7, H21; inversion H7; inversion H21; subst; clear H7 H21.
+    destruct ctx' as [[fv1 fdyn1] t1], ctx'0 as [[fv2 fdyn2] t2]. cbn in *.
+
+    (* Prove that the initial contexts for the function body agree on public
+    variables. We must prove both values and dynamic labels match for the
+    arguments if they are public. *)
+    assert (Hargs: agree_on_public_sec_ctx
+           ($0 $+ (x6, interp_sec e1 se) $+ (x7, interp_sec e2 se))
+           ($0 $+ (x6, interp_arith e1 (sec_val_of ctx1_in)) $+ (x7, interp_arith e2 (sec_val_of ctx1_in)),
+            $0 $+ (x6, interp_sec e1 (sec_of ctx1_in)) $+ (x7, interp_sec e2 (sec_of ctx1_in)),
+            sec_trace_of ctx1_in)
+           ($0 $+ (x6, interp_arith e1 (sec_val_of ctx2_in)) $+ (x7, interp_arith e2 (sec_val_of ctx2_in)),
+            $0 $+ (x6, interp_sec e1 (sec_of ctx2_in)) $+ (x7, interp_sec e2 (sec_of ctx2_in)),
+            sec_trace_of ctx1_in)).
+    { destruct Hagree as [Hval_agree Hdyn_agree].
+      split.
+      - (* Valuation agreement for arguments *)
+        resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
+        subst; autorewrite with core in *; try reflexivity; apply f_equal;
+        eapply interp_sec_public_agree; eauto.
+      - (* Dynamic label agreement for arguments *)
+        resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
+        subst; autorewrite with core in *; try reflexivity;
+        eapply interp_sec_dynamic_agree; eauto. }
+
+    (* Apply the induction hypothesis for the function body *)
+    rewrite <- Htrace in *.
+    edestruct IHHct as [Htrace_body Hbody]; eauto.
+    split; [exact Htrace_body |].
+
+    (* Prove that the output contexts after the call agree on public data *)
+    destruct Hagree as [Hval_agree Hdyn_agree].
+    destruct Hbody as [Hbody_val Hbody_dyn].
+    split.
+    + (* Valuation agreement for the return variable and caller environment *)
+      resolve_sec_update x.
+      * assert (Hpub: fv1 $? y1 = fv2 $? y1) by (apply Hbody_val; exact Hparam).
+        rewrite H29, H15 in Hpub. inversion Hpub. reflexivity.
+      * apply Hval_agree. exact Hparam.
+    + (* Dynamic label agreement for the return variable and caller environment *)
+      resolve_sec_update x.
+      * apply Hbody_dyn. exact Hparam.
+      * apply Hdyn_agree. exact Hparam.
+
   - (* CtSequence *)
     inversion Heval1; inversion Heval2; subst; clear Heval1 Heval2.
     (* IHHct1 tells us that after executing c1, the intermediate contexts
@@ -454,4 +501,4 @@ Proof.
     { eapply agree_on_public_sec_ctx_inv; eauto. }
 
     eapply while_soundness_sec with (se_body := se_body); eauto.
-Admitted.
+Qed.
