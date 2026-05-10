@@ -96,7 +96,7 @@ Notation "ctx 'sv$+' ( k , v )" :=
 
 (* Updating the security environment in a security context *)
 Notation "ctx 's$+' ( k , level )" :=
-  (sec_val_of ctx, sec_of ctx $+ (k, level), sec_trace_of ctx)
+  (sec_val_of ctx, update_sec (sec_of ctx) k level, sec_trace_of ctx)
   (at level 50, left associativity).
 
 (* Appending an event to the trace in a security context *)
@@ -106,7 +106,7 @@ Notation "ctx 'st++' ev" :=
 
 (* Define empty contexts to make writing examples easier *)
 Definition empty_context : context := ($0, nil).
-Definition empty_sec_context : sec_context := ($0, $0, nil).
+Definition empty_sec_context : sec_context := ($0, VarSet.empty, nil).
 
 Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
   match e with
@@ -126,10 +126,11 @@ Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
   | Binop _ e1 e2 => join_sec (interp_sec e1 se) (interp_sec e2 se)
   end.
 
-
+Definition agree_on_public (secrets : var_set) (v1 v2 : valuation) : Prop :=
+  forall x, not (VarSet.In x secrets) -> v1 $? x = v2 $? x.
 
 (*2 programs agree on public variables, with potentially different secrets *)
-Definition agree_on_public (se : sec_env) (v1 v2 : valuation) : Prop :=
+Definition agree_on_public' (se : sec_env) (v1 v2 : valuation) : Prop :=
   forall x, sec_lookup se x = Public -> v1 $? x = v2 $? x.
 
 Definition agree_on_secret (se : sec_env) (v1 v2 : valuation) : Prop :=
@@ -305,20 +306,20 @@ Qed.
 Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> Prop :=
   | EvalSecSkip : forall ctx,
       eval_sec phi ctx Skip ctx
-  | EvalSecAssign : forall ctx x e a level,
+  | EvalSecAssign : forall ctx x e a level ,
       interp_arith e (sec_val_of ctx) = a ->
       interp_sec e (sec_of ctx) = level ->
-      eval_sec phi ctx (Assign x e) ((ctx sv$+ (x, a)) s$+ (x, level))
+      eval_sec phi ctx (Assign x e) ((ctx sv$+ (x, a)) s$+ (x,level))
   | EvalSecAssignCall : forall x f e1 e2 x1 x2 y body a1 a2 level1 level2 ctx ctx' a level,
       phi $? f = Some ((x1, x2), y, body) ->
       interp_arith e1 (sec_val_of ctx) = a1 ->
       interp_arith e2 (sec_val_of ctx) = a2 ->
       interp_sec e1 (sec_of ctx) = level1 ->
       interp_sec e2 (sec_of ctx) = level2 ->
-      eval_sec phi (($0 $+ (x1, a1) $+ (x2, a2)), ($0 $+ (x1, level1) $+ (x2, level2)), sec_trace_of ctx) body ctx' ->
+      eval_sec phi (($0 $+ (x1, a1) $+ (x2, a2)), senv_mk2 x1 x2 level1 level2, sec_trace_of ctx) body ctx' ->
       sec_val_of ctx' $? y = Some a ->
       sec_lookup (sec_of ctx') y = level ->
-      eval_sec phi ctx (AssignCall x f e1 e2) ((sec_val_of ctx $+ (x, a)), (sec_of ctx $+ (x, level)), sec_trace_of ctx')
+      eval_sec phi ctx (AssignCall x f e1 e2) ((sec_val_of ctx $+ (x, a)), update_sec (sec_of ctx) x level, sec_trace_of ctx')
   | EvalSecSequence : forall ctx c1 ctx1 c2 ctx2,
       eval_sec phi ctx c1 ctx1 ->
       eval_sec phi ctx1 c2 ctx2 ->
@@ -427,17 +428,17 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       ct_cmd phi se Skip se
   | CtAssign : forall se x e level,
       interp_sec e se = level ->
-      ct_cmd phi se (Assign x e) (se $+ (x, level))
+      ct_cmd phi se (Assign x e) (update_sec se x level)
   | CtAssignCall : forall se x f e1 e2 x1 x2 y body body_se level1 level2 level,
       phi $? f = Some ((x1, x2), y, body) ->
       interp_sec e1 se = level1 ->
       interp_sec e2 se = level2 ->
       ct_cmd phi
-        ($0 $+ (x1, level1) $+ (x2, level2))
+        (senv_mk2 x1 x2 level1 level2)
         body
         body_se ->
       sec_lookup body_se y = level ->
-      ct_cmd phi se (AssignCall x f e1 e2) (se $+ (x, level))
+      ct_cmd phi se (AssignCall x f e1 e2) (update_sec se x level)
   | CtSequence : forall se c1 se1 c2 se2,
       ct_cmd phi se c1 se1 ->
       ct_cmd phi se1 c2 se2 ->
@@ -446,18 +447,18 @@ Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
       interp_sec e se = Public ->
       ct_cmd phi se thn se_thn ->
       ct_cmd phi se els se_els ->
-      join_sec_env se_thn se_els = se_join ->
+      VarSet.Equal (join_sec_env se_thn se_els) se_join ->
       ct_cmd phi se (If e thn els) (se_join)
   | CtWhile : forall se se_inv se_body e body,
       (* Ensures the invariant covers all starting secrets. *)
-      join_sec_env se se_inv = se_inv ->
+      VarSet.Equal (join_sec_env se se_inv) se_inv ->
       (* The loop condition must evaluate to Public under the invariant. *)
       interp_sec e se_inv = Public ->
       (* The body executes under the assumptions of the invariant. *)
       ct_cmd phi se_inv body se_body ->
       (* Guarantees the body cannot mutate a variable into a Secret if the
       invariant expected it to be Public. *)
-      join_sec_env se_inv se_body = se_inv ->
+      VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
       ct_cmd phi se (While e body) se_inv.
 
 
@@ -497,7 +498,7 @@ Definition opt_keeps_secrets_secret (opt : program -> program) : Prop :=
     opt pgm = pgm' ->
     eval_sec phi sctx (cmd_of pgm) sctx' ->
     eval_sec phi sctx (cmd_of pgm') sctx'' ->
-    forall x, (sec_of sctx') $? x = (sec_of sctx'') $? x /\
+    forall x, sec_lookup (sec_of sctx') x = sec_lookup (sec_of sctx'') x /\
     agree_on_secret (sec_of sctx') (sec_val_of sctx') (sec_val_of sctx'').
     
 
