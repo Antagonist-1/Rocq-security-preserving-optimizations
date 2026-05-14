@@ -63,4 +63,15 @@ Definition join_sec_env (se1 se2 : sec_env) : sec_env :=
 Definition is_secret (se : sec_env) (x : var) : Prop :=
   sec_lookup se x = Secret.
 
-(* Could prove keys equivalence betweeen sec_env fmap and val fmap *) 
+(*
+  Compute the security level of an expression, given a security environment.
+   Using join_sec to combine the security levels of subexpressions.
+ *)
+Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
+  match e with
+  | Const _ => Public
+  | Var x => sec_lookup se x
+  | Binop _ e1 e2 => join_sec (interp_sec e1 se) (interp_sec e2 se)
+  end.
+
+(* Could prove keys equivalence betweeen sec_env fmap and val fmap *)

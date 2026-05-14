@@ -1,7 +1,8 @@
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
-Require Import Language.Optimizations.
+Require Import Language.Analysis.
+Require Import Language.Optimizations.Unsafe.DSE.
 
 From Stdlib Require Import Lia.
 

@@ -1,8 +1,8 @@
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
-Require Import proofs.SecEnvProofs.
-Require Import examples.Programs.
+Require Import Proofs.SecEnvProofs.
+Require Import Examples.Programs.
 Require Import Language.Security.
 From Stdlib Require Import List.
 Import ListNotations.

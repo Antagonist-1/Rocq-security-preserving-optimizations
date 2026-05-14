@@ -1,7 +1,7 @@
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
-Require Import proofs.SecEnvProofs.
+Require Import Proofs.SecEnvProofs.
 From Stdlib Require Import Program.Equality.
 
 
