@@ -1,10 +1,10 @@
-Require Import examples.Programs.
+Require Import Examples.Programs.
 Require Import Language.Semantics.
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
-Require Import Language.Optimizations.
-Require Import proofs.SecurityProofs.
+Require Import Language.Optimizations.Unsafe.DSE.
+Require Import Proofs.SecurityProofs.
 
 From Stdlib Require Import Lia.
 
