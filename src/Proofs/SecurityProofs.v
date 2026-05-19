@@ -1,7 +1,9 @@
 Require Import Map.
+Require Import VarSets.
 Require Import Language.Main.
-Require Import proofs.SecEnvProofs.
-Require Import Coq.Program.Equality.
+Require Import Proofs.SecEnvProofs.
+From Stdlib Require Import Program.Equality.
+
 
 (* If two valuations agree on public data, then running the same program on them
 should produce the same trace.
@@ -20,6 +22,27 @@ Definition non_inference (phi: function_env) (se: sec_env) (c: cmd) (se_out: sec
     trace1 = trace2 /\ agree_on_public se_out final_v1 final_v2.
 
 
+
+Lemma pub_not_sec : forall se s,
+sec_lookup se s = Public <-> ~ VarSets.VarSet.In s se.
+Proof.
+  intros.
+  split.
+  - intro.
+    intro.
+    unfold sec_lookup in H.
+    rewrite <- VarSet.mem_spec in H0.
+    rewrite H0 in H.
+    discriminate.
+  - intro.
+    unfold sec_lookup.
+    rewrite <- VarSet.mem_spec in H.
+    apply Bool.not_true_is_false in H.
+    rewrite H.
+    reflexivity.
+Qed.
+
+
 (* If two valuations agree on public data, then the interpretation of any public
 expression should be the same. *)
 Lemma interp_sec_public_agree : forall e se v1 v2,
@@ -32,7 +55,7 @@ Proof.
   - (* const *)
     reflexivity.
   - (* var *)
-    unfold agree_on_public in Hagree.
+    apply pub_not_sec in Hsec.
     specialize (Hagree s Hsec).
     rewrite Hagree. reflexivity.
   - (* binop *)
@@ -50,28 +73,37 @@ Qed.
 (* If two valuations agree on public before executing an iteration of a
 loop, then they agree on the loop invariant environment (se_inv) *)
 Lemma agree_on_public_inv : forall se se_inv v1 v2,
-  join_sec_env se se_inv = se_inv ->
+  VarSet.Equal (join_sec_env se se_inv) se_inv ->
   agree_on_public se v1 v2 ->
   agree_on_public se_inv v1 v2.
 Proof.
   intros se se_inv v1 v2 Hjoin Hagree.
   unfold agree_on_public in *. intros x Hpub.
   apply Hagree.
+  apply pub_not_sec.
   apply join_sec_public_thn with se_inv.
-  rewrite Hjoin. exact Hpub.
+  unfold sec_lookup.
+  rewrite Hjoin. 
+  apply pub_not_sec.
+  exact Hpub.
 Qed.
+
 (* If two valuations agree on the output of the body of a loop, then they
 agree on the loop invariant environment (se_inv) *)
 Lemma agree_on_public_body_inv : forall se_inv se_body v1 v2,
-  join_sec_env se_inv se_body = se_inv ->
+  VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
   agree_on_public se_body v1 v2 ->
   agree_on_public se_inv v1 v2.
 Proof.
   intros se_inv se_body v1 v2 Hjoin Hagree.
   unfold agree_on_public in *. intros x Hpub.
   apply Hagree.
+  apply pub_not_sec.
   apply join_sec_public_els with se_inv.
-  rewrite Hjoin. exact Hpub.
+  unfold sec_lookup.
+  rewrite Hjoin. 
+  apply pub_not_sec in Hpub.
+  exact Hpub.
 Qed.
 
 
@@ -100,29 +132,66 @@ Proof.
       resolve_maps. destruct (param ==v x).
       + subst. destruct (x ==v x); [ | congruence ].
         autorewrite with core in *. apply f_equal.
+        apply pub_not_sec in Hparam.
+
         eapply interp_sec_public_agree; eauto.
+        destruct (interp_sec e se).
+        * reflexivity.
+        * simpl in Hparam.
+          unfold sec_lookup in Hparam.
+          rewrite VarSetEqProps.add_mem_1 in Hparam.
+          discriminate.
+
+ 
       + destruct (x ==v param); [ congruence | ].
-        autorewrite with core in *. apply Hagree. exact Hparam.
+        autorewrite with core in *. apply Hagree.
+        destruct (interp_sec e se) eqn:Hinterp_e; simpl in Hparam.
+        * rewrite VarSet.remove_spec in Hparam.
+          auto.
+        * rewrite VarSet.add_spec in Hparam.
+          auto.
   - (* AssignCall*)
     (* Unify duplicated function environments and extract contexts. *)
     invert_evals. rewrite H in H10, H22; inversion H10; inversion H22; subst; clear H10 H22.
     destruct ctx' as [fv1 t1], ctx'0 as [fv2 t2]. cbn in *.
-    (* Verify trace-independence of function arguments. *)
-    assert (Hargs: agree_on_public ($0 $+ (x6, interp_sec e1 se) $+ (x7, interp_sec e2 se))
+    (* Verify trace-independence of function arguments. *) 
+    assert (Hargs: agree_on_public (senv_mk2 x6 x7 (interp_sec e1 se) (interp_sec e2 se))
            ($0 $+ (x6, interp_arith e1 v1) $+ (x7, interp_arith e2 v1))
            ($0 $+ (x6, interp_arith e1 v2) $+ (x7, interp_arith e2 v2))).
     { resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
       subst; autorewrite with core in *; try reflexivity;
-      apply f_equal; eapply interp_sec_public_agree; eauto. }
+      apply f_equal; eapply interp_sec_public_agree; eauto.
+      1,2: destruct (interp_sec e2 se); [reflexivity|]; simpl in Hparam;
+        rewrite VarSet.add_spec in Hparam; firstorder.
+      * destruct (interp_sec e1 se); [reflexivity|]; simpl in Hparam;
+        destruct (interp_sec e2 se); simpl in Hparam.
+        1: rewrite VarSet.remove_spec in Hparam.
+        2: rewrite VarSet.add_spec in Hparam.
+        all: destruct Hparam. 
+        1: split; [|auto]; VarSetDecide.fsetdec.
+        1: right; VarSetDecide.fsetdec.
+      }
     (* Extract caller trace/memory safety and verify return variable assignment. *)
     edestruct IHHct as [Htrace Hbody]; eauto.
     split; [exact Htrace |].
     resolve_maps. destruct (x ==v param).
     + subst. autorewrite with core in *.
-      assert (Hpub: fv1 $? y1 = fv2 $? y1) by (apply Hbody; exact Hparam).
+      assert (Hpub: fv1 $? y1 = fv2 $? y1). 
+      {
+         apply Hbody. 
+         destruct (VarSet.mem y1 body_se) eqn:Hmem.
+         - simpl in Hparam.
+          VarSetDecide.fsetdec.
+        - rewrite <- VarSet.mem_spec.
+          congruence.
+      }
       rewrite H14, H26 in Hpub. inversion Hpub. reflexivity.
     + (* Any other variable *)
-      autorewrite with core in *. apply Hagree. exact Hparam.
+    autorewrite with core in *. apply Hagree. 
+      clear - Hparam n.
+      destruct (VarSet.mem y1 body_se) eqn:Hmem; simpl in Hparam.
+      * rewrite VarSet.add_spec in Hparam. firstorder.
+      * rewrite VarSet.remove_spec in Hparam. firstorder.
   - (* Sequence *)
     (* Pipeline safety properties directly from c1 into c2. *)
     invert_evals. destruct ctx1 as [v1' t1'], ctx3 as [v2' t2'].
@@ -137,7 +206,11 @@ Proof.
       split; [exact Htrace |].
       unfold agree_on_public in *. intros x Hpub.
       apply Hmem. (* This Hmem comes from IHHct2, so it uses se_els *)
-      eapply join_sec_public_thn. exact Hpub.
+      apply pub_not_sec. apply pub_not_sec in Hpub.
+      eapply join_sec_public_thn. 
+      unfold sec_lookup.
+      rewrite H0.
+      apply Hpub.
     + (* Case 2: True / False (IMPOSSIBLE) *)
       cbn in *.
       rewrite H14 in Hcond.
@@ -152,7 +225,11 @@ Proof.
       (* Memory safety for the joined environment *)
       unfold agree_on_public in *. intros x Hpub.
       apply Hmem.
-      eapply join_sec_public_els. exact Hpub.
+      apply pub_not_sec. apply pub_not_sec in Hpub.
+      eapply join_sec_public_els. 
+      unfold sec_lookup.
+      rewrite H0.
+      apply Hpub.
   - (* While *)
     (* The initial valuations agree on the loop invariant environment *)
     assert (Hagree_inv: agree_on_public se_inv v1 v2).
@@ -247,37 +324,45 @@ Definition non_inference_sec (phi: function_env) (se_static: sec_env) (c: cmd) (
 
 (* --- Helper Lemmas for If --- *)
 
-Lemma agree_on_public_sec_ctx_join_thn : forall se_thn se_els ctx1 ctx2,
+Lemma agree_on_public_sec_ctx_join_thn : forall se_thn se_els se_join ctx1 ctx2,
+  VarSet.Equal (join_sec_env se_thn se_els) se_join ->
   (* If two contexts agree on public data and labels for "then" branch env... *)
   agree_on_public_sec_ctx se_thn ctx1 ctx2 ->
   (* ...then they agree on public data and labels for the joined environment. *)
-  agree_on_public_sec_ctx (join_sec_env se_thn se_els) ctx1 ctx2.
+  agree_on_public_sec_ctx se_join ctx1 ctx2.
 Proof.
-  intros se_thn se_els ctx1 ctx2 [Hval Hdyn].
+  intros se_thn se_els se_join ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
-    apply Hval. exact Hthn.
-  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+  - rewrite <- pub_not_sec in Hpub.
+    unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
+    apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+    apply Hval. rewrite <- pub_not_sec. exact Hthn.
+  - unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
+    apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
     apply Hdyn. exact Hthn.
 Qed.
 
-Lemma agree_on_public_sec_ctx_join_els : forall se_thn se_els ctx1 ctx2,
+Lemma agree_on_public_sec_ctx_join_els : forall se_thn se_els se_join ctx1 ctx2,
+  VarSet.Equal (join_sec_env se_thn se_els) se_join ->
   (* If two contexts agree on public data and labels for "else" branch env... *)
   agree_on_public_sec_ctx se_els ctx1 ctx2 ->
   (* ...then they agree on public data and labels for the joined environment. *)
-  agree_on_public_sec_ctx (join_sec_env se_thn se_els) ctx1 ctx2.
+  agree_on_public_sec_ctx se_join ctx1 ctx2.
 Proof.
-  intros se_thn se_els ctx1 ctx2 [Hval Hdyn].
+  intros se_thn se_els se_join ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
-    apply Hval. exact Hels.
-  - apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+  - rewrite <- pub_not_sec in Hpub.
+    unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
+    apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
+    apply Hval. rewrite <- pub_not_sec. exact Hels.
+  - unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
+    apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
     apply Hdyn. exact Hels.
 Qed.
 
 (* --- Helper Lemmas for While --- *)
 Lemma agree_on_public_sec_ctx_inv : forall se se_inv ctx1 ctx2,
-  join_sec_env se se_inv = se_inv ->
+  VarSet.Equal (join_sec_env se se_inv) se_inv ->
   (* If two contexts agree on public data and labels for the original env... *)
   agree_on_public_sec_ctx se ctx1 ctx2 ->
   (* ...then they agree on public data and labels for the loop invariant env. *)
@@ -285,12 +370,12 @@ Lemma agree_on_public_sec_ctx_inv : forall se se_inv ctx1 ctx2,
 Proof.
   intros se se_inv ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - apply Hval. eapply join_sec_public_thn. rewrite Hjoin. exact Hpub.
-  - apply Hdyn. eapply join_sec_public_thn. rewrite Hjoin. exact Hpub.
+  - apply Hval. rewrite <- pub_not_sec. rewrite <- pub_not_sec in Hpub. eapply join_sec_public_thn. unfold sec_lookup. rewrite Hjoin. exact Hpub.
+  - apply Hdyn. eapply join_sec_public_thn. unfold sec_lookup. rewrite Hjoin. exact Hpub.
 Qed.
 
 Lemma agree_on_public_sec_ctx_body_inv : forall se_inv se_body ctx1 ctx2,
-  join_sec_env se_inv se_body = se_inv ->
+  VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
   (* If two contexts agree on public data and labels for the body env... *)
   agree_on_public_sec_ctx se_body ctx1 ctx2 ->
   (* ...then they agree on public data and labels for the loop invariant env. *)
@@ -298,15 +383,15 @@ Lemma agree_on_public_sec_ctx_body_inv : forall se_inv se_body ctx1 ctx2,
 Proof.
   intros se_inv se_body ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - apply Hval. eapply join_sec_public_els. rewrite Hjoin. exact Hpub.
-  - apply Hdyn. eapply join_sec_public_els. rewrite Hjoin. exact Hpub.
+  - apply Hval. rewrite <- pub_not_sec. rewrite <- pub_not_sec in Hpub. eapply join_sec_public_els. unfold sec_lookup. rewrite Hjoin. exact Hpub.
+  - apply Hdyn. eapply join_sec_public_els. unfold sec_lookup. rewrite Hjoin. exact Hpub.
 Qed.
 
 Lemma while_soundness_sec : forall phi se_inv e body se_body,
   interp_sec e se_inv = Public ->
   ct_cmd phi se_inv body se_body ->
   non_inference_sec phi se_inv body se_body ->
-  join_sec_env se_inv se_body = se_inv ->
+  VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
   non_inference_sec phi se_inv (While e body) se_inv.
 Proof.
   intros phi se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
@@ -353,6 +438,54 @@ Proof.
       * exact Hagree_inv.
 Qed.
 
+Lemma simplify_update_ne : forall x y se level,
+  y <> x ->
+  VarSet.mem y (update_sec se x level) 
+  = VarSet.mem y se.
+Proof.
+  intros.
+  unfold update_sec. destruct level.
+  - apply VarSetEqProps.remove_mem_2; congruence.
+  - apply VarSetEqProps.add_mem_2; congruence.
+Qed.
+
+Lemma mem_update_ne : forall se x y level,
+  y <> x ->
+  sec_lookup (update_sec se y level) x = Public ->
+  VarSet.mem x se = false.
+Proof.
+  unfold sec_lookup.
+  intros.
+  destruct level; simpl in H0.
+  1: rewrite VarSetEqProps.remove_mem_2 in H0 by assumption.
+  2: rewrite VarSetEqProps.add_mem_2 in H0 by assumption.
+  all: destruct (VarSet.mem x se); congruence.
+Qed.
+
+Lemma mem_update_eq : forall se x level,
+  sec_lookup (update_sec se x level) x = Public <->
+  level = Public.
+Proof.
+  unfold sec_lookup.
+  split;
+  intros.
+  destruct level; simpl in H.
+  reflexivity.
+  rewrite VarSetEqProps.add_mem_1 in H. discriminate.
+  subst.
+  simpl.
+  rewrite VarSetEqProps.remove_mem_1. reflexivity.
+Qed.
+
+Lemma mem_lookup_eq: forall se1 se2 x level,
+  sec_lookup (update_sec se1 x level) x = sec_lookup (update_sec se2 x level) x.
+Proof.
+  intros.
+  unfold update_sec, sec_lookup. destruct level.
+  - repeat rewrite VarSetEqProps.remove_mem_1; reflexivity.
+  - repeat rewrite VarSetEqProps.add_mem_1; reflexivity.
+Qed.
+
 
 Theorem ct_cmd_soundness_sec : forall phi se c se_out,
   ct_cmd phi se c se_out ->
@@ -393,12 +526,24 @@ Proof.
     + (* Part 1: Prove values agree *)
       resolve_sec_update x.
       * apply f_equal. eapply interp_sec_public_agree; eauto.
-      * apply Hval_agree. exact Hparam.
-
+        rewrite <- pub_not_sec in Hparam.
+        eapply mem_update_eq. eassumption.
+      * apply Hval_agree. rewrite <- pub_not_sec in Hparam.
+        rewrite <- VarSet.mem_spec. 
+        rewrite Bool.not_true_iff_false.
+        eapply mem_update_ne; eauto.
     + (* Part 2: Prove dynamic labels agree *)
       resolve_sec_update x.
-      * eapply interp_sec_dynamic_agree; eauto.
-      * apply Hdyn_agree. exact Hparam.
+      apply mem_update_eq in Hparam.
+      * specialize (interp_sec_dynamic_agree e _ _ _ Hdyn_agree Hparam); intros Hinterp_dyn.
+        rewrite Hinterp_dyn.
+        destruct (interp_sec e (sec_of ctx2_in)); simpl.
+        1: do 2 rewrite VarSetEqProps.remove_mem_1.
+        2: do 2 rewrite VarSetEqProps.add_mem_1.
+        all: reflexivity.
+      * repeat rewrite simplify_update_ne by congruence.
+        apply Hdyn_agree. rewrite simplify_update_ne in Hparam by congruence.
+        exact Hparam.
 
   - (* CtAssignCall *)
     invert_evals_sec.
@@ -411,12 +556,12 @@ Proof.
     variables. We must prove both values and dynamic labels match for the
     arguments if they are public. *)
     assert (Hargs: agree_on_public_sec_ctx
-           ($0 $+ (x6, interp_sec e1 se) $+ (x7, interp_sec e2 se))
+            (senv_mk2 x6 x7 (interp_sec e1 se) (interp_sec e2 se))
            ($0 $+ (x6, interp_arith e1 (sec_val_of ctx1_in)) $+ (x7, interp_arith e2 (sec_val_of ctx1_in)),
-            $0 $+ (x6, interp_sec e1 (sec_of ctx1_in)) $+ (x7, interp_sec e2 (sec_of ctx1_in)),
+            (senv_mk2 x6 x7  (interp_sec e1 (sec_of ctx1_in)) (interp_sec e2 (sec_of ctx1_in))),
             sec_trace_of ctx1_in)
            ($0 $+ (x6, interp_arith e1 (sec_val_of ctx2_in)) $+ (x7, interp_arith e2 (sec_val_of ctx2_in)),
-            $0 $+ (x6, interp_sec e1 (sec_of ctx2_in)) $+ (x7, interp_sec e2 (sec_of ctx2_in)),
+           senv_mk2 x6 x7 (interp_sec e1 (sec_of ctx2_in)) (interp_sec e2 (sec_of ctx2_in)),
             sec_trace_of ctx1_in)).
     { destruct Hagree as [Hval_agree Hdyn_agree].
       split.
@@ -424,10 +569,39 @@ Proof.
         resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
         subst; autorewrite with core in *; try reflexivity; apply f_equal;
         eapply interp_sec_public_agree; eauto.
+        1,2: destruct (interp_sec e2 se); [reflexivity|]; 
+        simpl in Hparam; VarSetDecide.fsetdec. 
+
+        destruct (interp_sec e1 se); [reflexivity|].
+        clear - Hparam n.
+        unfold senv_mk2 in Hparam. simpl in Hparam.
+        rewrite <- VarSet.mem_spec in Hparam.
+        rewrite Bool.not_true_iff_false in Hparam.
+        rewrite simplify_update_ne in Hparam by congruence.
+        rewrite VarSetEqProps.add_mem_1 in Hparam. 
+        discriminate.
+
       - (* Dynamic label agreement for arguments *)
         resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
-        subst; autorewrite with core in *; try reflexivity;
-        eapply interp_sec_dynamic_agree; eauto. }
+        subst; autorewrite with core in *; try reflexivity.
+        clear - Hparam Hdyn_agree.
+        all: unfold senv_mk2 in Hparam.
+        1,2: apply mem_update_eq in Hparam;
+                specialize (interp_sec_dynamic_agree _ _ _ _ Hdyn_agree Hparam); intro Hdyn;
+        rewrite Hdyn;
+        unfold senv_mk2;
+        apply mem_lookup_eq. 
+
+        all:apply mem_update_ne in Hparam; [| congruence].
+        destruct (interp_sec e1 se) eqn:He1; [|simpl in Hparam; rewrite VarSetEqProps.add_mem_1 in Hparam; discriminate].
+        specialize (interp_sec_dynamic_agree e1 _ _ _ Hdyn_agree He1); intro Hdyn.
+        rewrite Hdyn. unfold senv_mk2.
+        repeat rewrite simplify_update_ne with (x:=x7).
+        1-3: congruence.
+        unfold senv_mk2.
+        repeat rewrite simplify_update_ne.
+        all: congruence.
+    }
 
     (* Apply the induction hypothesis for the function body *)
     rewrite <- Htrace in *.
@@ -440,13 +614,34 @@ Proof.
     split.
     + (* Valuation agreement for the return variable and caller environment *)
       resolve_sec_update x.
-      * assert (Hpub: fv1 $? y1 = fv2 $? y1) by (apply Hbody_val; exact Hparam).
+      * assert (Hpub: fv1 $? y1 = fv2 $? y1).
+      {
+        apply Hbody_val.
+        clear - Hparam.
+        rewrite <- VarSet.mem_spec.
+        rewrite Bool.not_true_iff_false.
+        destruct (VarSet.mem y1 body_se); [unfold update_sec in Hparam; VarSetDecide.fsetdec| reflexivity]. 
+      } 
         rewrite H29, H15 in Hpub. inversion Hpub. reflexivity.
-      * apply Hval_agree. exact Hparam.
+      * apply Hval_agree.
+        rewrite <- VarSet.mem_spec in *.
+        rewrite Bool.not_true_iff_false in *.
+        destruct (VarSet.mem param se) eqn:Hmem; [| reflexivity].
+        rewrite simplify_update_ne in Hparam; [| congruence].
+        rewrite Hmem in Hparam. discriminate. 
     + (* Dynamic label agreement for the return variable and caller environment *)
       resolve_sec_update x.
-      * apply Hbody_dyn. exact Hparam.
-      * apply Hdyn_agree. exact Hparam.
+      * 
+        clear - Hbody_dyn Hparam.
+        rewrite Hbody_dyn. apply mem_lookup_eq. 
+        destruct (VarSet.mem y1 body_se) eqn:Hmem; [| reflexivity].
+        simpl in Hparam.
+        rewrite VarSetEqProps.add_mem_1 in Hparam. discriminate.
+      * clear - Hdyn_agree Hparam n.
+        do 2 (rewrite simplify_update_ne; [| congruence]).
+        apply Hdyn_agree. destruct (VarSet.mem param se) eqn:Hmem; [| reflexivity].
+        rewrite simplify_update_ne in Hparam; [| congruence].
+        rewrite Hmem in Hparam. discriminate.
 
   - (* CtSequence *)
     inversion Heval1; inversion Heval2; subst; clear Heval1 Heval2.
@@ -473,6 +668,7 @@ Proof.
       edestruct (IHHct1 (ctx1_in st++ Branch true) (ctx2_in st++ Branch true) ctx1_out ctx2_out) as [Htrace_thn Hagree_thn]; eauto.
 
       split; [exact Htrace_thn |].
+
       eapply agree_on_public_sec_ctx_join_thn; eauto.
 
     + (* Case 2: True / False (Contradiction) *)
