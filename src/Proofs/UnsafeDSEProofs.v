@@ -554,46 +554,19 @@ Qed.
 
 
 
+Create HintDb eval_db.
+Hint Constructors eval eval_trace eval_sec : eval_db.
+
 Lemma opt_unskip_sound: forall phi c v v',
   eval phi v c v' ->
   eval phi v (opt_unskip c) v'.
 Proof.
-  (* eval_intro taken from lab6*)
-  Ltac simpl_maps := autorewrite with core in *.
-  Ltac eval_intro :=
-    let eval_intro_solve :=
-        intros; simpl in *; simpl_maps;
-        lazymatch goal with
-        | [  |- eval _ _ _ _ ] => idtac
-        | _ => intuition congruence
-        end in
-    lazymatch goal with
-    | [  |- eval _ _ Skip _ ] =>
-      apply EvalSkip
-    | [  |- eval _ _ (Assign _ _) _ ] =>
-      eapply EvalAssign
-    | [  |- eval _ _ (Cmov _ _ _ _) _ ] =>
-      (eapply EvalCmovFalse + eapply EvalCmovTrue); eval_intro_solve
-    | [  |- eval _ _ (AssignCall _ _ _ _) _ ] =>
-      eapply EvalAssignCall
-    | [  |- eval _ _ (Sequence _ _) _ ] =>
-      eapply EvalSequence
-    | [  |- eval _ _ (While _ _) _ ] =>
-      (eapply EvalWhileTrue + eapply EvalWhileFalse); eval_intro_solve
-    | [  |- eval _ _ (If _ _ _) _ ] =>
-      (eapply EvalIfTrue + eapply EvalIfFalse); eval_intro_solve
-    | [  |- eval _ _ ?cmd _ ] =>
-      unfold cmd at -1 || unfold cmd
-    | [  |- interp_arith _ _ = _ _ ] => econstructor
-    | _ => progress (intros; simpl in *; simpl_maps) || (intuition congruence)
-    end.
-
-    induction 1; simpl; intros; try eval_intro; try eassumption.
+    induction 1; simpl; intros; eauto with eval_db.
     all: repeat match goal with 
     | [ |- context[match ?pat with _ => _ end]] => destruct pat
     end.
     all: try inversion IHeval1; try inversion IHeval2; subst;
-    try eval_intro; eauto.
+    eauto with eval_db.
 Qed.
 
 
