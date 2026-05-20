@@ -6,6 +6,7 @@ Require Import Language.Optimizations.Safe.DSE.
 Require Import Proofs.UnsafeDSEProofs.
 
 
+
 Lemma safe_dse_helper_sound: forall phi c out v1 v2 v1' secrets,
   agree_on (liveness c out) v1 v2 ->
   eval phi v1 c v1' ->
@@ -25,29 +26,53 @@ Proof.
         eapply agree_on_subset; [| apply agree_on_sym; exact H_agree]. VarSetDecide.fsetdec. }
       exists (v_2 $+ (x, a)). split.
       * apply EvalAssign with (v:=v_2). simpl. exact Ha.
-      * unfold agree_on. intros y Hy.
-        destruct (vsp.FM.eq_dec x y).
-        -- subst. repeat (rewrite lookup_add_eq; [| reflexivity]); reflexivity.
-        -- repeat (rewrite lookup_add_ne; [| auto]).
-           apply H_agree. apply VarSet.mem_spec, VarSet.union_spec. left.
-           apply VarSet.remove_spec. split; [apply VarSet.mem_spec; exact Hy | apply not_eq_sym; exact n].
-    + destruct (sec_lookup secrets x) eqn:Hsecret; eexists; split.
-      1,3: constructor.
-      reflexivity.
-      simpl.
-      eapply agree_on_update_out in Hx.
-      eapply agree_on_trans.
-      apply agree_on_sym.
-      apply Hx.
-      apply H_agree.
-      unfold agree_on. intros y Hy.
-      rewrite lookup_add_ne. 
-      * simpl.
-        eapply agree_on_update_out with (v:=v_2)(a:=(interp_arith e v_2)) in Hx.
-        pose proof agree_on_trans as Htrans. 
-        specialize (Htrans _ _ _ _ H_agree Hx).
-        apply Htrans. exact Hy.
-      * intro Heq. subst. rewrite Hy in Hx. discriminate.
+      * eapply agree_on_written_update; exact H_agree.
+    + destruct (sec_lookup secrets x) eqn:Hsecret.
+      * exists v_2. split; [constructor |].
+        eapply agree_on_dead_update_left; eauto.
+      * exists (v_2 $+ (x, interp_arith e v_2)). split.
+        -- apply EvalAssign. reflexivity.
+        -- eapply agree_on_dead_update_both; eauto.
+
+  - simpl in *.
+    destruct (VarSet.mem x out) eqn:Hx.
+    + assert (Hcond: interp_arith cond v_2 = c) by solve_dse_cmov_interp H_agree.
+      assert (Ha1: interp_arith e1 v_2 = a1) by solve_dse_cmov_interp H_agree.
+      assert (Ha2: interp_arith e2 v_2 = a2) by solve_dse_cmov_interp H_agree.
+      exists (v_2 $+ (x, a1)). split.
+      * eapply EvalCmovTrue with (v:=v_2); eassumption.
+      * eapply agree_on_written_update; exact H_agree.
+    + destruct (sec_lookup secrets x) eqn:Hsecret.
+      * exists v_2. split.
+        -- apply EvalSkip.
+        -- eapply agree_on_dead_update_left; eauto.
+      * destruct (interp_arith cond v_2) eqn:Hcond2.
+        -- exists (v_2 $+ (x, interp_arith e2 v_2)). split.
+           ++ eapply EvalCmovFalse with (v:=v_2) (a1:=interp_arith e1 v_2); eauto.
+           ++ eapply agree_on_dead_update_both; eauto.
+        -- exists (v_2 $+ (x, interp_arith e1 v_2)). split.
+           ++ eapply EvalCmovTrue with (v:=v_2) (c:=S n) (a2:=interp_arith e2 v_2); eauto; discriminate.
+           ++ eapply agree_on_dead_update_both; eauto.
+
+  - simpl in *.
+    destruct (VarSet.mem x out) eqn:Hx.
+    + assert (Hcond: interp_arith cond v_2 = 0) by solve_dse_cmov_interp H_agree.
+      assert (Ha1: interp_arith e1 v_2 = a1) by solve_dse_cmov_interp H_agree.
+      assert (Ha2: interp_arith e2 v_2 = a2) by solve_dse_cmov_interp H_agree.
+      exists (v_2 $+ (x, a2)). split.
+      * eapply EvalCmovFalse with (v:=v_2); eassumption.
+      * eapply agree_on_written_update; exact H_agree.
+    + destruct (sec_lookup secrets x) eqn:Hsecret.
+      * exists v_2. split.
+        -- apply EvalSkip.
+        -- eapply agree_on_dead_update_left; eauto.
+      * destruct (interp_arith cond v_2) eqn:Hcond2.
+        -- exists (v_2 $+ (x, interp_arith e2 v_2)). split.
+           ++ eapply EvalCmovFalse with (v:=v_2) (a1:=interp_arith e1 v_2); eauto.
+           ++ eapply agree_on_dead_update_both; eauto.
+        -- exists (v_2 $+ (x, interp_arith e1 v_2)). split.
+           ++ eapply EvalCmovTrue with (v:=v_2) (c:=S n) (a2:=interp_arith e2 v_2); eauto; discriminate.
+           ++ eapply agree_on_dead_update_both; eauto.
 
   - simpl in *.
     assert (Ha1: interp_arith e1 v_2 = a1).
@@ -58,12 +83,7 @@ Proof.
       eapply agree_on_subset; [| apply agree_on_sym; exact H_agree]. VarSetDecide.fsetdec. }
     exists (v_2 $+ (x, a)). split.
     + eapply EvalAssignCall; [exact H | simpl; exact Ha1 | simpl; exact Ha2 | exact H2 | exact H3].
-    + unfold agree_on. intros y0 Hy0.
-      destruct (vsp.FM.eq_dec x y0).
-      * subst. simpl. repeat (rewrite lookup_add_eq; [| reflexivity]).  reflexivity.
-      * simpl. repeat (rewrite lookup_add_ne; [| auto]).
-        apply H_agree. apply VarSet.mem_spec, VarSet.union_spec. left.
-        apply VarSet.remove_spec. split; [apply VarSet.mem_spec; exact Hy0 | apply not_eq_sym; exact n].
+    + eapply agree_on_written_update; exact H_agree.
 
   - simpl in *.
     destruct (IHeval1 (liveness c2 out) secrets v_2 H_agree) as [v_mid2 [H_mid2 H_agree_mid]].

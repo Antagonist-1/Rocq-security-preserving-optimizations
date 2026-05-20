@@ -207,3 +207,31 @@ Proof.
   rewrite VarSetEqProps.add_mem_1 in Hpres.
   discriminate.
 Qed.
+
+(* Prove the old approach is rejected because If guards must be Public *)
+Example ct_old_secret_branch_rejected :
+  ~ exists se',
+      ct_cmd $0
+        (senv_mk3 "secret_flag" "data1" "data2" Secret Public Public)
+        old_secret_branch
+        se'.
+Proof.
+  intros [se' Hct].
+  inversion Hct; subst.
+  unfold interp_sec, sec_lookup in H2. cbn in H2.
+  autorewrite with core in H2.
+  discriminate.
+Qed.
+
+(* Prove the new approach is accepted, gracefully propagating the Secret label to "out" *)
+Example ct_new_cmov_branch_ok :
+  exists se',
+      ct_cmd $0
+        (senv_mk3 "secret_flag" "data1" "data2" Secret Public Public)
+        new_cmov_branch
+        se'.
+Proof.
+  eexists.
+  (* CtCmov allows secret conditions and uses join_sec to compute the output label *)
+  repeat econstructor; crush_security.
+Qed.

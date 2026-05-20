@@ -107,6 +107,17 @@ Inductive eval (phi: function_env): valuation -> cmd -> valuation -> Prop :=
   | EvalAssign: forall v x e a,
       interp_arith e v = a ->
       eval phi v (Assign x e) (v $+ (x, a))
+  | EvalCmovTrue: forall v x cond e1 e2 c a1 a2,
+      interp_arith cond v = c ->
+      c <> 0 ->
+      interp_arith e1 v = a1 ->
+      interp_arith e2 v = a2 ->
+      eval phi v (Cmov x cond e1 e2) (v $+ (x, a1))
+  | EvalCmovFalse: forall v x cond e1 e2 a1 a2,
+      interp_arith cond v = 0 ->
+      interp_arith e1 v = a1 ->
+      interp_arith e2 v = a2 ->
+      eval phi v (Cmov x cond e1 e2) (v $+ (x, a2))
   | EvalAssignCall: forall x f e1 e2 x1 x2 y body a1 a2 a v v',
     phi $? f = Some ((x1, x2), y, body) ->
     interp_arith e1 v = a1 ->
@@ -150,6 +161,8 @@ Theorem eval_deterministic :
     - inversion H. reflexivity.
     - inversion H0; subst;
     reflexivity.
+    - inversion H3; subst; try reflexivity; congruence.
+    - inversion H2; subst; try reflexivity; congruence.
     - inversion H4; subst.
       rewrite H in H9. injection H9; intros; subst.
       apply IHeval in H14. subst.
@@ -177,6 +190,17 @@ Inductive eval_trace (phi: function_env): context -> cmd -> context -> Prop :=
   | EvalTraceAssign: forall ctx x e a,
       interp_arith e (val_of ctx) = a ->
       eval_trace phi ctx (Assign x e) (ctx v$+ (x, a))
+  | EvalTraceCmovTrue: forall ctx x cond e1 e2 c a1 a2,
+      interp_arith cond (val_of ctx) = c ->
+      c <> 0 ->
+      interp_arith e1 (val_of ctx) = a1 ->
+      interp_arith e2 (val_of ctx) = a2 ->
+      eval_trace phi ctx (Cmov x cond e1 e2) (ctx v$+ (x, a1))
+  | EvalTraceCmovFalse: forall ctx x cond e1 e2 a1 a2,
+      interp_arith cond (val_of ctx) = 0 ->
+      interp_arith e1 (val_of ctx) = a1 ->
+      interp_arith e2 (val_of ctx) = a2 ->
+      eval_trace phi ctx (Cmov x cond e1 e2) (ctx v$+ (x, a2))
   | EvalTraceAssignCall: forall x f e1 e2 x1 x2 y body a1 a2 a ctx ctx',
     phi $? f = Some ((x1, x2), y, body) ->
     interp_arith e1 (val_of ctx) = a1 ->
@@ -228,6 +252,14 @@ Proof.
     invert_eval. auto.
   - (* Assign *)
     invert_eval. auto.
+  - (* CmovTrue *)
+    invert_eval.
+    + auto.
+    + lia.
+  - (* CmovFalse *)
+    invert_eval.
+    + lia.
+    + auto.
   - (* AssignCall *)
     invert_eval.
     rewrite H in H7. inversion H7. subst.
@@ -287,7 +319,20 @@ Inductive eval_sec (phi : function_env) : sec_context -> cmd -> sec_context -> P
   | EvalSecAssign : forall ctx x e a level ,
       interp_arith e (sec_val_of ctx) = a ->
       interp_sec e (sec_of ctx) = level ->
-      eval_sec phi ctx (Assign x e) ((ctx sv$+ (x, a)) s$+ (x,level))
+      eval_sec phi ctx (Assign x e) ((ctx sv$+ (x, a)) s$+ (x, level))
+  | EvalSecCmovTrue : forall ctx x cond e1 e2 c a1 a2 level,
+      interp_arith cond (sec_val_of ctx) = c ->
+      c <> 0 ->
+      interp_arith e1 (sec_val_of ctx) = a1 ->
+      interp_arith e2 (sec_val_of ctx) = a2 ->
+      join_sec (interp_sec cond (sec_of ctx)) (join_sec (interp_sec e1 (sec_of ctx)) (interp_sec e2 (sec_of ctx))) = level ->
+      eval_sec phi ctx (Cmov x cond e1 e2) ((ctx sv$+ (x, a1)) s$+ (x, level))
+  | EvalSecCmovFalse : forall ctx x cond e1 e2 a1 a2 level,
+      interp_arith cond (sec_val_of ctx) = 0 ->
+      interp_arith e1 (sec_val_of ctx) = a1 ->
+      interp_arith e2 (sec_val_of ctx) = a2 ->
+      join_sec (interp_sec cond (sec_of ctx)) (join_sec (interp_sec e1 (sec_of ctx)) (interp_sec e2 (sec_of ctx))) = level ->
+      eval_sec phi ctx (Cmov x cond e1 e2) ((ctx sv$+ (x, a2)) s$+ (x, level))
   | EvalSecAssignCall : forall x f e1 e2 x1 x2 y body a1 a2 level1 level2 ctx ctx' a level,
       phi $? f = Some ((x1, x2), y, body) ->
       interp_arith e1 (sec_val_of ctx) = a1 ->
@@ -345,6 +390,14 @@ Proof.
     invert_eval_sec. auto.
   - (* Assign *)
     invert_eval_sec. auto.
+  - (* CmovTrue *)
+    invert_eval_sec.
+    + auto.
+    + lia.
+  - (* CmovFalse *)
+    invert_eval_sec.
+    + lia.
+    + auto.
   - (* AssignCall *)
     invert_eval_sec.
     rewrite H in H10. inversion H10. subst.

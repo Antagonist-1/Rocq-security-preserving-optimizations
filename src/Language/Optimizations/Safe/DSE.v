@@ -15,6 +15,11 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
       end
         (*keep assigncalls for now, but they could be removed as in simple Assign*)
   | AssignCall x f e1 e2 => AssignCall x f e1 e2
+  | Cmov x cond e1 e2 =>
+      match (VarSet.mem x out), (sec_lookup secrets x) with
+      | false, Public => Skip
+      | _, _ => Cmov x cond e1 e2
+      end
   | Sequence c1 c2 =>
       Sequence (safe_dse_helper c1 (liveness c2 out) secrets) (safe_dse_helper c2 out secrets)
   | If e thenC elseC =>

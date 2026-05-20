@@ -88,6 +88,44 @@ Proof.
   exact Hpub.
 Qed.
 
+Lemma update_skip_ne : forall x y se level,
+  x <> y ->
+  VarSet.mem y (update_sec se x level) =
+   VarSet.mem y se.
+Proof.
+  intros.
+  destruct level; simpl.
+  1: rewrite VarSetEqProps.remove_mem_2 by congruence. reflexivity.
+  1: rewrite VarSetEqProps.add_mem_2 by congruence. reflexivity.
+Qed.
+
+Lemma cmov_non_inference : forall phi se x cond e1 e2 level,
+  join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
+  non_inference phi se (Cmov x cond e1 e2) (update_sec se x level).
+Proof.
+  unfold non_inference.
+  Ltac resolve_cmov_maps :=
+    unfold agree_on_public, sec_lookup in *; intros param Hparam;
+    autorewrite with core in *; cbn in *.
+  intros phi se x cond e1 e2 level Hjoin
+    v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
+  split.
+  { inversion Heval1; inversion Heval2; subst; reflexivity. }
+  inversion Heval1; inversion Heval2; subst; resolve_cmov_maps.
+  all: destruct (param ==v x);
+  [ subst; destruct (x ==v x); [ | congruence ];
+    autorewrite with core in *;
+    destruct (interp_sec cond se) eqn:Hcond_sec;
+    destruct (interp_sec e1 se) eqn:He1_sec;
+    destruct (interp_sec e2 se) eqn:He2_sec;
+    cbn in Hparam; try VarSetDecide.fsetdec;
+    try (apply f_equal; eapply interp_sec_public_agree; eauto);
+    try (assert (Hcond_val: interp_arith cond v1 = interp_arith cond v2) by (eapply interp_sec_public_agree; eauto); congruence)
+  | destruct (x ==v param); [ congruence | ];
+    autorewrite with core in *; apply Hagree;
+    rewrite <- VarSet.mem_spec in *; rewrite update_skip_ne in Hparam; auto ].
+Qed.
+
 
 (* A program that is constant time according to our definition should satisfy
 non-inference. *)
@@ -132,6 +170,8 @@ Proof.
           auto.
         * rewrite VarSet.add_spec in Hparam.
           auto.
+  - (* Cmov *)
+    eapply cmov_non_inference; eauto.
   - (* AssignCall*)
     (* Unify duplicated function environments and extract contexts. *)
     invert_evals. rewrite H in H10, H22; inversion H10; inversion H22; subst; clear H10 H22.
@@ -468,6 +508,53 @@ Proof.
   - repeat rewrite VarSetEqProps.add_mem_1; reflexivity.
 Qed.
 
+Lemma cmov_non_inference_sec : forall phi se x cond e1 e2 level,
+  join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
+  non_inference_sec phi se (Cmov x cond e1 e2) (update_sec se x level).
+Proof.
+  Ltac resolve_sec_update_main :=
+    intros param Hparam; cbn in *.
+
+  unfold non_inference_sec.
+  intros phi se x cond e1 e2 level Hjoin ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
+  inversion Heval1; inversion Heval2; subst;
+    (split; [assumption |]);
+    destruct Hagree as [Hval_agree Hdyn_agree];
+    unfold agree_on_public_sec_ctx, agree_on_public in *;
+    split; resolve_sec_update_main.
+  all: destruct (x ==v param);
+  [ subst;
+    try rewrite lookup_add_eq in Hparam by reflexivity;
+    repeat rewrite lookup_add_eq by reflexivity;
+    try rewrite <- pub_not_sec in *;
+    repeat rewrite lookup_update_sec_eq in *;
+    destruct (interp_sec cond se) eqn:Hcond_sec;
+    destruct (interp_sec e1 se) eqn:He1_sec;
+    destruct (interp_sec e2 se) eqn:He2_sec;
+    cbn in *; try discriminate;
+    try match goal with
+    | |- Some _ = Some _ =>
+        try (apply f_equal; eapply interp_sec_public_agree; eauto);
+        try (assert (Hcond_val: interp_arith cond (sec_val_of ctx1_in) = interp_arith cond (sec_val_of ctx2_in))
+             by (eapply interp_sec_public_agree; eauto); congruence)
+    | |- join_sec _ _ = join_sec _ _ =>
+        rewrite (interp_sec_dynamic_agree cond se (sec_of ctx1_in) (sec_of ctx2_in) Hdyn_agree Hcond_sec);
+        rewrite (interp_sec_dynamic_agree e1 se (sec_of ctx1_in) (sec_of ctx2_in) Hdyn_agree He1_sec);
+        rewrite (interp_sec_dynamic_agree e2 se (sec_of ctx1_in) (sec_of ctx2_in) Hdyn_agree He2_sec);
+        reflexivity
+    end
+  | try rewrite lookup_add_ne in Hparam by congruence;
+    repeat rewrite lookup_add_ne by congruence;
+    try rewrite <- pub_not_sec in *;
+    repeat rewrite lookup_update_sec_ne in * by congruence;
+    try match goal with
+    | |- _ $? ?v = _ $? ?v =>
+        apply Hval_agree; rewrite <- pub_not_sec; exact Hparam
+    | |- sec_lookup _ ?v = sec_lookup _ ?v =>
+        apply Hdyn_agree; exact Hparam
+    end ].
+Qed.
+
 
 Theorem ct_cmd_soundness_sec : forall phi se c se_out,
   ct_cmd phi se c se_out ->
@@ -529,11 +616,20 @@ Proof.
       * eapply interp_sec_dynamic_agree; eauto.
       * apply Hdyn_agree. exact Hparam.
 
+  - (* CtCmov *)
+    pose proof (cmov_non_inference_sec phi se x cond e1 e2 level H) as Hcmov.
+    unfold non_inference_sec in Hcmov.
+    eapply Hcmov; eauto.
+
   - (* CtAssignCall *)
     invert_evals_sec.
 
     (* Unify the function environment lookups *)
-    rewrite H in H7, H21; inversion H7; inversion H21; subst; clear H7 H21.
+    match goal with
+    | H1 : Map.M.lookup phi _ = Some _, H2 : Map.M.lookup phi _ = Some _, H3 : Map.M.lookup phi _ = Some _ |- _ =>
+        rewrite H1 in H2; inversion H2; subst; clear H2;
+        rewrite H1 in H3; inversion H3; subst; clear H3
+    end.
     destruct ctx' as [[fv1 fdyn1] t1], ctx'0 as [[fv2 fdyn2] t2]. cbn in *.
 
     (* Prove that the initial contexts for the function body agree on public
@@ -568,7 +664,7 @@ Proof.
       resolve_sec_update x.
       * assert (Hpub: fv1 $? y1 = fv2 $? y1) by
         (apply Hbody_val; rewrite pub_not_sec in *; exact Hparam).
-        rewrite H29, H15 in Hpub. inversion Hpub. reflexivity.
+        congruence.
       * apply Hval_agree. rewrite pub_not_sec in *. exact Hparam.
     + (* Dynamic label agreement for the return variable and caller environment *)
       resolve_sec_update x.

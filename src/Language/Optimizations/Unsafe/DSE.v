@@ -12,6 +12,11 @@ Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
       | false => Skip (*not live, remove this assignment*)
       | true => Assign x e (*used later. keep it*)
       end
+  | Cmov x cond e1 e2 =>
+      match VarSet.mem x out with
+      | false => Skip
+      | true => Cmov x cond e1 e2
+      end
         (*keep assigncalls for now, but they could be removed as in simple Assign*)
   | AssignCall x f e1 e2 => AssignCall x f e1 e2
   | Sequence c1 c2 =>

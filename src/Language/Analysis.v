@@ -37,6 +37,7 @@ Fixpoint vars_in_cmd (c: cmd) : var_set :=
   match c with
   | Skip => VarSet.empty
   | Assign x e => VarSet.add x (vars_in_expr e)
+  | Cmov x cond e1 e2 => VarSet.add x (VarSet.union (vars_in_expr cond) (VarSet.union (vars_in_expr e1) (vars_in_expr e2)))
   | AssignCall x f e1 e2 => VarSet.add x (VarSet.union (vars_in_expr e1) (vars_in_expr e2))
   | Sequence c1 c2 => VarSet.union (vars_in_cmd c1) (vars_in_cmd c2)
   | If e c1 c2 => VarSet.union (vars_in_expr e) (VarSet.union (vars_in_cmd c1) (vars_in_cmd c2))
@@ -81,6 +82,10 @@ Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
       -> propagates backwardsunuse of variables *)
       if VarSet.mem x out
       then VarSet.union (VarSet.remove x out) (vars_in_expr e)
+      else out
+  | Cmov x cond e1 e2 =>
+      if VarSet.mem x out
+      then VarSet.union (VarSet.remove x out) (VarSet.union (vars_in_expr cond) (VarSet.union (vars_in_expr e1) (vars_in_expr e2)))
       else out
   (*Body of functions cant access outer functions, no need to care about it*)
   | AssignCall x f e1 e2 =>

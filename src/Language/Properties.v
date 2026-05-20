@@ -18,12 +18,44 @@ Definition agree_on_secret (se : sec_env) (v1 v2 : valuation) : Prop :=
 (* Another way is to say that two valuations are low-equivalent, meaning they agree on all public variables *)
 Definition low_equiv := agree_on_public.
 
+
+(* Constant-time semantics.
+
+   Unlike [eval] and [eval_sec], this relation does not execute a command to a
+   final valuation.  Instead, it checks whether the command is well-labeled with
+   respect to constant-time discipline, threading only a security environment.
+
+   The structural rules [CtSkip] and [CtSequence] mirror the corresponding rules
+   in the evaluation relations, but over [sec_env] instead of execution contexts.
+
+   [CtAssign] updates the assigned variable with the label computed by
+   [interp_sec], recording how information may flow through the assignment.
+
+   [CtAssignCall] mirrors function-call structure, but initializes the callee
+   with the argument labels rather than argument values, checks the callee body
+   under those labels, and propagates the return variable's label back to the
+   caller via [sec_lookup body_se y].
+
+   The new constant-time condition appears in [CtIf]: the guard must satisfy
+   [interp_sec e se = Public], ensuring that branching does not depend on secret
+   data.  Both branches are checked, and their resulting environments are joined
+   with [join_sec_env].
+
+   [CtWhile] similarly requires the loop guard to be public, but also adds the
+   invariant premise [join_sec_env se se_inv = se_inv].  This ensures that the
+   loop body is checked in a security environment stable enough to soundly model
+   any number of iterations.
+ *)
 Inductive ct_cmd (phi : function_env) : sec_env -> cmd -> sec_env -> Prop :=
   | CtSkip : forall se,
       ct_cmd phi se Skip se
   | CtAssign : forall se x e level,
       interp_sec e se = level ->
       ct_cmd phi se (Assign x e) (update_sec se x level)
+  | CtCmov : forall se x cond e1 e2 level,
+      (* We allow conditioning on secret values, because no *)
+      join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
+      ct_cmd phi se (Cmov x cond e1 e2) (update_sec se x level)
   | CtAssignCall : forall se x f e1 e2 x1 x2 y body body_se level1 level2 level,
       phi $? f = Some ((x1, x2), y, body) ->
       interp_sec e1 se = level1 ->
