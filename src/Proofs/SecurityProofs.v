@@ -477,15 +477,30 @@ Proof.
     inversion Heval1; inversion Heval2; subst.
 
   Ltac resolve_sec_update x :=
-    intros param Hparam; cbn in *; destruct (x ==v param);
-    [ subst;
-      unfold sec_lookup in *;
-      try rewrite lookup_add_eq in Hparam by reflexivity;
-      repeat rewrite lookup_add_eq by reflexivity
-    | unfold sec_lookup in *;
-      try rewrite lookup_add_ne in Hparam by congruence;
-      repeat rewrite lookup_add_ne by congruence;
-      fold sec_lookup in * ].
+  intros param Hparam; cbn in *; destruct (x ==v param);
+  [ subst;
+    try rewrite lookup_add_eq in Hparam by reflexivity;
+    repeat rewrite lookup_add_eq by reflexivity;
+    try rewrite <- pub_not_sec in *;
+    repeat rewrite lookup_update_sec_eq in *
+  | try rewrite lookup_add_ne in Hparam by congruence;
+    repeat rewrite lookup_add_ne by congruence;
+    try rewrite <- pub_not_sec in *;
+    repeat rewrite lookup_update_sec_ne in * by congruence
+  ].
+
+  Ltac resolve_senv_mk2 dest1 dest2 Hagree:=
+  intros param Hparam; cbn in *; try rewrite <- pub_not_sec in Hparam;
+  destruct (param ==v dest2); [
+    subst; repeat rewrite lookup_senv_mk2_eq2 in *
+  | destruct (param ==v dest1); [
+      subst; repeat rewrite lookup_senv_mk2_eq1 in * by congruence
+    | repeat rewrite lookup_senv_mk2_ne in * by congruence;
+      autorewrite with core in *;
+      try reflexivity; try (apply Hagree; exact Hparam)
+    ]
+  ];
+  autorewrite with core in *; try reflexivity.
 
   intros phi se c se_out Hct.
   unfold non_inference_sec.
@@ -505,27 +520,14 @@ Proof.
     unfold agree_on_public_sec_ctx, agree_on_public in *.
     split.
 
-    + (* Part 1: Prove values agree *)
+    + (* Prove values agree *)
       resolve_sec_update x.
       * apply f_equal. eapply interp_sec_public_agree; eauto.
-        rewrite <- pub_not_sec in Hparam.
-        eapply mem_update_eq. eassumption.
-      * apply Hval_agree. rewrite <- pub_not_sec in Hparam.
-        rewrite <- VarSet.mem_spec. 
-        rewrite Bool.not_true_iff_false.
-        eapply mem_update_ne; eauto.
-    + (* Part 2: Prove dynamic labels agree *)
+      * apply Hval_agree. rewrite <- pub_not_sec. exact Hparam.
+    + (* Prove dynamic labels agree *)
       resolve_sec_update x.
-      apply mem_update_eq in Hparam.
-      * specialize (interp_sec_dynamic_agree e _ _ _ Hdyn_agree Hparam); intros Hinterp_dyn.
-        rewrite Hinterp_dyn.
-        destruct (interp_sec e (sec_of ctx2_in)); simpl.
-        1: do 2 rewrite VarSetEqProps.remove_mem_1.
-        2: do 2 rewrite VarSetEqProps.add_mem_1.
-        all: reflexivity.
-      * repeat rewrite simplify_update_ne by congruence.
-        apply Hdyn_agree. rewrite simplify_update_ne in Hparam by congruence.
-        exact Hparam.
+      * eapply interp_sec_dynamic_agree; eauto.
+      * apply Hdyn_agree. exact Hparam.
 
   - (* CtAssignCall *)
     invert_evals_sec.
@@ -547,42 +549,10 @@ Proof.
             sec_trace_of ctx1_in)).
     { destruct Hagree as [Hval_agree Hdyn_agree].
       split.
-      - (* Valuation agreement for arguments *)
-        resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
-        subst; autorewrite with core in *; try reflexivity; apply f_equal;
+      - resolve_senv_mk2 x6 x7 Hval_agree; apply f_equal;
         eapply interp_sec_public_agree; eauto.
-        1,2: destruct (interp_sec e2 se); [reflexivity|]; 
-        simpl in Hparam; VarSetDecide.fsetdec. 
 
-        destruct (interp_sec e1 se); [reflexivity|].
-        clear - Hparam n.
-        unfold senv_mk2 in Hparam. simpl in Hparam.
-        rewrite <- VarSet.mem_spec in Hparam.
-        rewrite Bool.not_true_iff_false in Hparam.
-        rewrite simplify_update_ne in Hparam by congruence.
-        rewrite VarSetEqProps.add_mem_1 in Hparam. 
-        discriminate.
-
-      - (* Dynamic label agreement for arguments *)
-        resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
-        subst; autorewrite with core in *; try reflexivity.
-        clear - Hparam Hdyn_agree.
-        all: unfold senv_mk2 in Hparam.
-        1,2: apply mem_update_eq in Hparam;
-                specialize (interp_sec_dynamic_agree _ _ _ _ Hdyn_agree Hparam); intro Hdyn;
-        rewrite Hdyn;
-        unfold senv_mk2;
-        apply mem_lookup_eq. 
-
-        all:apply mem_update_ne in Hparam; [| congruence].
-        destruct (interp_sec e1 se) eqn:He1; [|simpl in Hparam; rewrite VarSetEqProps.add_mem_1 in Hparam; discriminate].
-        specialize (interp_sec_dynamic_agree e1 _ _ _ Hdyn_agree He1); intro Hdyn.
-        rewrite Hdyn. unfold senv_mk2.
-        repeat rewrite simplify_update_ne with (x:=x7).
-        1-3: congruence.
-        unfold senv_mk2.
-        repeat rewrite simplify_update_ne.
-        all: congruence.
+      - resolve_senv_mk2 x6 x7 Hdyn_agree; eapply interp_sec_dynamic_agree; eauto.
     }
 
     (* Apply the induction hypothesis for the function body *)
@@ -596,34 +566,14 @@ Proof.
     split.
     + (* Valuation agreement for the return variable and caller environment *)
       resolve_sec_update x.
-      * assert (Hpub: fv1 $? y1 = fv2 $? y1).
-      {
-        apply Hbody_val.
-        clear - Hparam.
-        rewrite <- VarSet.mem_spec.
-        rewrite Bool.not_true_iff_false.
-        destruct (VarSet.mem y1 body_se); [unfold update_sec in Hparam; VarSetDecide.fsetdec| reflexivity]. 
-      } 
+      * assert (Hpub: fv1 $? y1 = fv2 $? y1) by
+        (apply Hbody_val; rewrite pub_not_sec in *; exact Hparam).
         rewrite H29, H15 in Hpub. inversion Hpub. reflexivity.
-      * apply Hval_agree.
-        rewrite <- VarSet.mem_spec in *.
-        rewrite Bool.not_true_iff_false in *.
-        destruct (VarSet.mem param se) eqn:Hmem; [| reflexivity].
-        rewrite simplify_update_ne in Hparam; [| congruence].
-        rewrite Hmem in Hparam. discriminate. 
+      * apply Hval_agree. rewrite pub_not_sec in *. exact Hparam.
     + (* Dynamic label agreement for the return variable and caller environment *)
       resolve_sec_update x.
-      * 
-        clear - Hbody_dyn Hparam.
-        rewrite Hbody_dyn. apply mem_lookup_eq. 
-        destruct (VarSet.mem y1 body_se) eqn:Hmem; [| reflexivity].
-        simpl in Hparam.
-        rewrite VarSetEqProps.add_mem_1 in Hparam. discriminate.
-      * clear - Hdyn_agree Hparam n.
-        do 2 (rewrite simplify_update_ne; [| congruence]).
-        apply Hdyn_agree. destruct (VarSet.mem param se) eqn:Hmem; [| reflexivity].
-        rewrite simplify_update_ne in Hparam; [| congruence].
-        rewrite Hmem in Hparam. discriminate.
+      * apply Hbody_dyn. exact Hparam.
+      * apply Hdyn_agree. exact Hparam.
 
   - (* CtSequence *)
     inversion Heval1; inversion Heval2; subst; clear Heval1 Heval2.
