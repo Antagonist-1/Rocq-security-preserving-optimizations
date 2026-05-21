@@ -111,6 +111,9 @@ Qed.
 (** * Secret Preservation Support *)
 (* This part uses eval_sec *)
 
+(** Similar to [opt_unskip_skip_trace_complete], if a command optimizes to [Skip],
+    it acts as a no-op under [eval_sec] and exactly preserves the security context
+    (valuation, security environment, and trace). *)
 Lemma opt_unskip_skip_sec_complete : forall phi c ctx,
   opt_unskip_cmd c = Skip ->
   eval_sec phi ctx c ctx.
@@ -131,8 +134,10 @@ Proof.
   - discriminate.
 Qed.
 
-(* Same expansion property for [eval_sec]: final valuation, security
-   environment, and trace are preserved exactly. *)
+(** Same expansion property for [eval_sec] as [opt_unskip_trace_complete].
+    Any [eval_sec] execution of the optimized command can be expanded into a source
+    execution with the exactly identical final context (valuation, security
+    environment, and trace). *)
 Lemma opt_unskip_sec_complete : forall phi c ctx ctx_opt,
   eval_sec phi ctx (opt_unskip_cmd c) ctx_opt ->
   eval_sec phi ctx c ctx_opt.
