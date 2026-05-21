@@ -13,10 +13,12 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Language/Semantics.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Properties.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Main.v
+	$(ROCQC) $(ROCQFLAGS) src/Language/Optimizations/Safe/Unskip.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Optimizations/Unsafe/DSE.v
 	$(ROCQC) $(ROCQFLAGS) src/Language/Optimizations/Safe/DSE.v
 	$(ROCQC) $(ROCQFLAGS) src/Examples/Programs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecEnvProofs.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnskipProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnsafeDSEProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/EvalEquivalence.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecurityProofs.v
