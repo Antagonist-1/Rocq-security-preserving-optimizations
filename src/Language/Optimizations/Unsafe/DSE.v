@@ -29,4 +29,4 @@ Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
   end.
 
 Definition opt_dse (pgm: program): program :=
-  (opt_unskip (dse_helper (cmd_of pgm) (output_of pgm)), output_of pgm).
+  (opt_unskip_cmd (dse_helper (cmd_of pgm) (output_of pgm)), output_of pgm).
