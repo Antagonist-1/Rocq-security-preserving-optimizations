@@ -7,22 +7,6 @@ Definition program := (cmd * var_set)%type.
 Definition cmd_of (pgm: program) := fst pgm.
 Definition output_of (pgm: program) := snd pgm.
 
-(* clean programs by removing skips after DSE *)
-Fixpoint opt_unskip (c: cmd) :  cmd :=
-  match c with
-  | Sequence c1 c2 => match (opt_unskip c1), (opt_unskip c2) with
-                       | Skip, c2' => c2'
-                       | c1', Skip => c1'
-                       | c1', c2' => c1' ;; c2'
-                     end
-  | If cond thenC elseC => match opt_unskip thenC, opt_unskip elseC with
-                          | Skip, Skip => Skip
-                          | thenC', elseC' => If cond thenC' elseC'
-                          end
-  (* We can't simplify the loop because it might be non-terminating *)
-  | While cond body => While cond (opt_unskip body)
-  | _ => c
-  end.
 
   (* All vars used in an expr *)
 Fixpoint vars_in_expr (e: expr) : var_set :=

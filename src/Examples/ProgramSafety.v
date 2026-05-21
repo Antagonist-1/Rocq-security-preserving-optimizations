@@ -93,7 +93,7 @@ Example sctx: sec_context := ($0 $+ ("x", 123), senv_mk1 "x" Secret, nil).
 Example sctx': sec_context := ($0 $+ ("x", 123) $+ ("x", 0), senv_mk2 "x" "x" Secret Public, nil).
 Example sctx'' := sctx. (* secret untouched after opt dse!*)
 
-Theorem unsafeDSE_unsafe : forall phi,  ~ is_safe_opt phi (opt_dse).
+Theorem unsafeDSE_unsafe : forall phi,  ~ is_safe_opt phi (fun p _ => opt_dse p).
 Proof.
   unfold is_safe_opt.
   intros phi H.

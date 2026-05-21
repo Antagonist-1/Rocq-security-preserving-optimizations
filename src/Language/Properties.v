@@ -120,9 +120,9 @@ Definition is_safe_pgm (phi: function_env) (pgm: program) (secrets: sec_env): Pr
       1. the resulting set of secrets are the same (secrets propagated correctly)
       2. AND both valuation agree on the value of secrets (all secure assigns are kept)
   *)
-Definition opt_keeps_secrets_secret (opt : program -> program) : Prop :=
+Definition opt_keeps_secrets_secret (opt : program -> sec_env -> program) : Prop :=
   forall sctx sctx' sctx'' pgm pgm' phi,
-    opt pgm = pgm' ->
+    opt pgm (sec_of sctx) = pgm' ->
     eval_sec phi sctx (cmd_of pgm) sctx' ->
     eval_sec phi sctx (cmd_of pgm') sctx'' ->
     forall x, sec_lookup (sec_of sctx') x = sec_lookup (sec_of sctx'') x /\
@@ -134,7 +134,9 @@ Definition opt_keeps_secrets_secret (opt : program -> program) : Prop :=
       1. transform a safe program into another safe program
       2. doesn't change the value or sec_level of secrets, compared to the source program.
     *)
-  Definition is_safe_opt (phi: function_env) (opt: program -> program): Prop :=
+  Definition is_safe_opt (phi: function_env) (opt: program -> sec_env -> program): Prop :=
     (forall (p: program) (secrets: sec_env) ,
-      is_safe_pgm phi p secrets -> is_safe_pgm phi (opt p) secrets) /\
+      is_safe_pgm phi p secrets -> is_safe_pgm phi (opt p secrets) secrets) /\
       opt_keeps_secrets_secret opt.
+
+
