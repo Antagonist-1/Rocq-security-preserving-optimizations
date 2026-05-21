@@ -30,4 +30,4 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
   end.
 
 Definition opt_safe_dse (pgm: program) (secrets: sec_env): program :=
-  (opt_unskip (safe_dse_helper (cmd_of pgm) (output_of pgm) secrets), output_of pgm).
+  (opt_unskip_cmd (safe_dse_helper (cmd_of pgm) (output_of pgm) secrets), output_of pgm).
