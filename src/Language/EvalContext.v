@@ -68,3 +68,49 @@ Notation "ctx 'st++' ev" :=
 (* Define empty contexts to make writing examples easier *)
 Definition empty_context : context := ($0, nil).
 Definition empty_sec_context : sec_context := ($0, VarSet.empty, nil).
+
+
+(* [trace_subseq src opt] means [opt] is a subsequence of [src]. *)
+Inductive trace_subseq {A : Type} : list A -> list A -> Prop :=
+  | SubseqNil : 
+      trace_subseq [] []
+  | SubseqKeep : forall x src opt,
+      trace_subseq src opt ->
+      trace_subseq (x :: src) (x :: opt)
+  | SubseqDrop : forall x src opt,
+      trace_subseq src opt ->
+      trace_subseq (x :: src) opt.
+
+(* An optimized context matches a source context if their valuations are
+perfectly equal, and the optimized trace is a subsequence of the source trace *)
+Definition match_ctx (ctx_src ctx_opt : context) : Prop :=
+  val_of ctx_src = val_of ctx_opt /\
+  trace_subseq (trace_of ctx_src) (trace_of ctx_opt).
+
+(* The security environment and valuation must match exactly, but the security
+trace can drop branches. *)
+Definition match_sec_ctx (sctx_src sctx_opt : sec_context) : Prop :=
+  sec_val_of sctx_src = sec_val_of sctx_opt /\
+  sec_of sctx_src = sec_of sctx_opt /\
+  trace_subseq (sec_trace_of sctx_src) (sec_trace_of sctx_opt).
+
+
+Create HintDb trace_subseq_db.
+Hint Constructors trace_subseq : trace_subseq_db.
+(* If opt is a subseq of src, we can append an event to src and drop it. *)
+Lemma trace_subseq_append_drop : forall A (src opt : list A) (x : A),
+  trace_subseq src opt ->
+  trace_subseq (src ++ [x]) opt.
+Proof.
+  intros A src opt x Hsubseq.
+  induction Hsubseq; eauto with trace_subseq_db.
+Qed.
+
+(* If opt is subseq of src, we can safely append the same event to both *)
+Lemma trace_subseq_append_keep : forall A (src opt : list A) (x : A),
+  trace_subseq src opt ->
+  trace_subseq (src ++ [x]) (opt ++ [x]).
+Proof.
+  intros A src opt x Hsubseq.
+  induction Hsubseq; eauto with trace_subseq_db.
+Qed.
