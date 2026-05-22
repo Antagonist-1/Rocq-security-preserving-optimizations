@@ -24,6 +24,69 @@ Qed.
 (** * Exact Trace Preservation Support (Non-Inference Lemmas) *)
 (* This part uses eval_trace *)
 
+Ltac solve_simple_assigns Hmatch:=
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
+    rewrite Hval in *;
+    eexists; split; eauto with unskip_db;
+    unfold match_ctx; split; simpl; auto.
+
+(* Running an unoptimized program from matching contexts yields matching
+contexts. This is mainly a helper lemmas for AssignCall, because the bodies of
+the functions are not optimized by [opt_unskip_cmd]. *)
+Lemma eval_trace_unopt_match : forall phi c ctx_src ctx_src_final ctx_opt,
+  eval_trace phi ctx_src c ctx_src_final ->
+  match_ctx ctx_src ctx_opt ->
+  exists ctx_opt_final,
+    eval_trace phi ctx_opt c ctx_opt_final /\
+    match_ctx ctx_src_final ctx_opt_final.
+Proof.
+  intros phi c ctx_src ctx_src_final ctx_opt Heval Hmatch.
+  revert ctx_opt Hmatch.
+  induction Heval; intros ctx_opt Hmatch; simpl;
+  try solve [ solve_simple_assigns Hmatch].
+  - (* Skip *)
+    eexists; split; eauto with unskip_db.
+  (* Assign, CmovTrue and CmovFalse solved by solve_ simple_assigns *)
+  - unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace]; rewrite Hval in *.
+    assert (Hmatch_body : match_ctx ($0 $+ (x1, a1) $+ (x2, a2), trace_of ctx)
+                                    ($0 $+ (x1, a1) $+ (x2, a2), trace_of ctx_opt)) 
+      by (split; auto).
+    apply IHHeval in Hmatch_body as [ctx_opt_body_final [Hstep_body Hmatch_body_final]].
+    unfold match_ctx in Hmatch_body_final; destruct Hmatch_body_final as [Hval_body Htrace_body].
+    rewrite Hval_body in *.
+    eexists; split; eauto with unskip_db.
+    unfold match_ctx; split; simpl; auto.
+  - apply IHHeval1 in Hmatch as [ctx1_opt [Hstep1 Hmatch1]].
+    apply IHHeval2 in Hmatch1 as [ctx2_opt [Hstep2 Hmatch2]].
+    eexists; split; eauto with unskip_db.
+  - (* IfTrue *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
+    assert (Hmatch_branch : match_ctx (ctx t++ Branch true) (ctx_opt t++ Branch true)) 
+      by (split; auto; apply trace_subseq_append_keep; auto).
+    apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
+    rewrite Hval in *.
+    eexists; split; eauto with unskip_db.
+  - (* IfFalse *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
+    assert (Hmatch_branch : match_ctx (ctx t++ Branch false) (ctx_opt t++ Branch false)) 
+      by (split; auto; apply trace_subseq_append_keep; auto).
+    apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
+    rewrite Hval in *.
+    eexists; split; eauto with unskip_db.
+  - (* WhileTrue *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
+    assert (Hmatch_branch : match_ctx (ctx t++ Branch true) (ctx_opt t++ Branch true)) 
+      by (split; auto; apply trace_subseq_append_keep; auto).
+    apply IHHeval1 in Hmatch_branch as [ctx_opt_mid [Hstep1 Hmatch_mid]].
+    apply IHHeval2 in Hmatch_mid as [ctx_opt_final [Hstep2 Hmatch_final]].
+    rewrite Hval in *.
+    eexists; split; eauto with unskip_db.
+  - (* WhileFalse *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
+    rewrite Hval in *.
+    eexists; split; eauto with unskip_db.
+    unfold match_ctx; split; simpl; auto; apply trace_subseq_append_keep; auto.
+Qed.
 (* Since [opt_unskip_cmd] no longer removes [If _ Skip Skip], a command can optimize
    to [Skip] only when it is operationally a no-op with exactly the same trace. *)
 Lemma opt_unskip_skip_trace_complete : forall phi c ctx,
