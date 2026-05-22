@@ -88,7 +88,7 @@ Proof.
     unfold match_ctx; split; simpl; auto; apply trace_subseq_append_keep; auto.
 Qed.
 
-Lemma opt_unskip_sim : forall phi c ctx_src ctx_src_final ctx_opt,
+Lemma opt_unskip_forward : forall phi c ctx_src ctx_src_final ctx_opt,
   eval_trace phi ctx_src c ctx_src_final ->
   match_ctx ctx_src ctx_opt ->
   exists ctx_opt_final,
@@ -125,7 +125,61 @@ Proof.
       | H : eval_trace _ _ Skip _ |- _ => inversion H; subst; clear H
     end;
     eexists; split; eauto with unskip_db.
-Admitted.
+
+  - (* IfTrue *)
+    destruct (opt_unskip_cmd thn) eqn:Hthn;
+    destruct (opt_unskip_cmd els) eqn:Hels.
+    (* Skip, Skip case, drop branch *)
+    1: {
+      unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+      assert (Hmatch_branch : match_ctx (ctx t++ Branch true) ctx_opt) 
+        by (split; auto; apply trace_subseq_append_drop; auto).
+      apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
+      inversion Hstep; subst; clear Hstep.
+      eexists; split; eauto with unskip_db.
+    }
+    (* Other cases: the branch is kept *)
+    all: unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    all: assert (Hmatch_branch : match_ctx (ctx t++ Branch true) (ctx_opt t++ Branch true)) 
+           by (split; auto; apply trace_subseq_append_keep; auto).
+    all: apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
+    all: rewrite Hval in *.
+    all: eexists; split; eauto with unskip_db.
+  - (* IfFalse, same as IfTrue but with 'Branch false' *)
+    destruct (opt_unskip_cmd thn) eqn:Hthn;
+    destruct (opt_unskip_cmd els) eqn:Hels.
+    1: {
+      unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+      assert (Hmatch_branch : match_ctx (ctx t++ Branch false) ctx_opt) 
+        by (split; auto; apply trace_subseq_append_drop; auto).
+      apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
+      inversion Hstep; subst; clear Hstep.
+      eexists; split; eauto with unskip_db.
+    }
+    all: unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    all: assert (Hmatch_branch : match_ctx (ctx t++ Branch false) (ctx_opt t++ Branch false)) 
+           by (split; auto; apply trace_subseq_append_keep; auto).
+    all: apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
+    all: rewrite Hval in *.
+    all: eexists; split; eauto with unskip_db.
+
+  - (* WhileTrue *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    (* Keep the true branch *)
+    assert (Hmatch_branch : match_ctx (ctx t++ Branch true) (ctx_opt t++ Branch true)) 
+      by (split; auto; apply trace_subseq_append_keep; auto).
+    (* Chain the body execution and the rest of the loop execution *)
+    apply IHHeval1 in Hmatch_branch as [ctx_opt_mid [Hstep1 Hmatch_mid]].
+    apply IHHeval2 in Hmatch_mid as [ctx_opt_final [Hstep2 Hmatch_final]].
+    rewrite Hval in *.
+    eexists; split; eauto with unskip_db.
+
+  - (* WhileFalse *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    rewrite Hval in *.
+    eexists; split; eauto with unskip_db.
+    unfold match_ctx; split; simpl; auto; apply trace_subseq_append_keep; auto.
+Qed.
 
 (* Since [opt_unskip_cmd] no longer removes [If _ Skip Skip], a command can optimize
    to [Skip] only when it is operationally a no-op with exactly the same trace. *)
