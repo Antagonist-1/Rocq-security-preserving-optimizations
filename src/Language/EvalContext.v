@@ -114,3 +114,9 @@ Proof.
   intros A src opt x Hsubseq.
   induction Hsubseq; eauto with trace_subseq_db.
 Qed.
+
+Lemma trace_subseq_refl : forall A (l : list A),
+  trace_subseq l l.
+Proof.
+  induction l; constructor; auto.
+Qed.
