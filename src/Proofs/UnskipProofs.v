@@ -87,6 +87,46 @@ Proof.
     eexists; split; eauto with unskip_db.
     unfold match_ctx; split; simpl; auto; apply trace_subseq_append_keep; auto.
 Qed.
+
+Lemma opt_unskip_sim : forall phi c ctx_src ctx_src_final ctx_opt,
+  eval_trace phi ctx_src c ctx_src_final ->
+  match_ctx ctx_src ctx_opt ->
+  exists ctx_opt_final,
+    eval_trace phi ctx_opt (opt_unskip_cmd c) ctx_opt_final /\
+    match_ctx ctx_src_final ctx_opt_final.
+Proof.
+  intros phi c ctx_src ctx_src_final ctx_opt Heval Hmatch.
+  revert ctx_opt Hmatch;
+  induction Heval; intros ctx_opt Hmatch; simpl;
+  try solve [ solve_simple_assigns Hmatch].
+  - (* Skip *)
+    eexists; split; eauto with unskip_db.
+
+  - (* AssignCall *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    rewrite Hval in *.
+    assert (Hmatch_body : match_ctx ($0 $+ (x1, a1) $+ (x2, a2), trace_of ctx)
+                                    ($0 $+ (x1, a1) $+ (x2, a2), trace_of ctx_opt)).
+    { split; auto. }
+    eapply eval_trace_unopt_match with (ctx_opt := ($0 $+ (x1, a1) $+ (x2, a2), trace_of ctx_opt)) in Heval; auto.
+    destruct Heval as [ctx_opt_body_final [Hstep_body Hmatch_body_final]].
+    unfold match_ctx in Hmatch_body_final; destruct Hmatch_body_final as [Hval_body Htrace_body].
+    rewrite Hval_body in H2.
+    eexists; split.
+    + eapply EvalTraceAssignCall; eauto.
+    + unfold match_ctx in *; split; simpl; auto.
+
+  - (* Sequence *)
+    apply IHHeval1 in Hmatch as [ctx1_opt [Hstep1 Hmatch1]].
+    apply IHHeval2 in Hmatch1 as [ctx2_opt [Hstep2 Hmatch2]].
+    destruct (opt_unskip_cmd c1) eqn:Hc1opt;
+    destruct (opt_unskip_cmd c2) eqn:Hc2opt;
+    repeat match goal with
+      | H : eval_trace _ _ Skip _ |- _ => inversion H; subst; clear H
+    end;
+    eexists; split; eauto with unskip_db.
+Admitted.
+
 (* Since [opt_unskip_cmd] no longer removes [If _ Skip Skip], a command can optimize
    to [Skip] only when it is operationally a no-op with exactly the same trace. *)
 Lemma opt_unskip_skip_trace_complete : forall phi c ctx,
