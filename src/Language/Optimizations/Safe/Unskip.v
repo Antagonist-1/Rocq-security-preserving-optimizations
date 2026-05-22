@@ -10,14 +10,10 @@ Fixpoint opt_unskip_cmd (c: cmd) :  cmd :=
                        | c1', Skip => c1'
                        | c1', c2' => c1' ;; c2'
                      end
-  | If cond thenC elseC => If cond (opt_unskip_cmd thenC) (opt_unskip_cmd elseC)
-  (* Original definition that removed [If cond skip skip] :  
-    | If cond thenC elseC => match opt_unskip thenC, opt_unskip elseC with
+  | If cond thenC elseC => match opt_unskip_cmd thenC, opt_unskip_cmd elseC with
                           | Skip, Skip => Skip
                           | thenC', elseC' => If cond thenC' elseC'
                           end
-
-  *)
   (* We can't simplify the loop because it might be non-terminating *)
   | While cond body => While cond (opt_unskip_cmd body)
   | _ => c
