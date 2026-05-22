@@ -186,12 +186,6 @@ Qed.
 Lemma opt_unskip_skip_trace_complete : forall phi c ctx,
   opt_unskip_cmd c = Skip ->
   eval_trace phi ctx c ctx.
-Lemma opt_unskip_backward : forall phi c ctx_opt ctx_opt_final ctx_src,
-  eval_trace phi ctx_opt (opt_unskip_cmd c) ctx_opt_final ->
-  match_ctx ctx_src ctx_opt ->
-  exists ctx_src_final,
-    eval_trace phi ctx_src c ctx_src_final /\
-    match_ctx ctx_src_final ctx_opt_final.
 Proof.
   induction c; simpl; intros ctx Hskip.
   - constructor.
@@ -208,7 +202,6 @@ Proof.
   - discriminate.
   - discriminate.
 Qed.
-Admitted.
 
 (* Any optimized trace execution can be expanded into a source execution with
    exactly the same final context. This is true because [opt_unskip_cmd] only removes
@@ -216,12 +209,6 @@ Admitted.
 Lemma opt_unskip_trace_complete : forall phi c ctx ctx_opt,
   eval_trace phi ctx (opt_unskip_cmd c) ctx_opt ->
   eval_trace phi ctx c ctx_opt.
-Lemma opt_traces_equal : forall phi c v1 v2 t_in final_v1 final_v2 trace1 trace2 src_final_v1 src_final_v2 src_trace,
-  eval_trace phi (v1, t_in) c (src_final_v1, src_trace) ->
-  eval_trace phi (v2, t_in) c (src_final_v2, src_trace) ->
-  eval_trace phi (v1, t_in) (opt_unskip_cmd c) (final_v1, trace1) ->
-  eval_trace phi (v2, t_in) (opt_unskip_cmd c) (final_v2, trace2) ->
-  trace1 = trace2.
 Proof.
   induction c; simpl; intros ctx ctx_opt Hopt.
   - exact Hopt.
@@ -255,6 +242,23 @@ Proof.
       eapply EvalTraceWhileTrue; eauto.
     + eapply EvalTraceWhileFalse; eauto.
 Qed.
+
+Lemma opt_unskip_backward : forall phi c ctx_opt ctx_opt_final ctx_src,
+  eval_trace phi ctx_opt (opt_unskip_cmd c) ctx_opt_final ->
+  match_ctx ctx_src ctx_opt ->
+  exists ctx_src_final,
+    eval_trace phi ctx_src c ctx_src_final /\
+    match_ctx ctx_src_final ctx_opt_final.
+Proof.
+Admitted.
+
+Lemma opt_traces_equal : forall phi c v1 v2 t_in final_v1 final_v2 trace1 trace2 src_final_v1 src_final_v2 src_trace,
+  eval_trace phi (v1, t_in) c (src_final_v1, src_trace) ->
+  eval_trace phi (v2, t_in) c (src_final_v2, src_trace) ->
+  eval_trace phi (v1, t_in) (opt_unskip_cmd c) (final_v1, trace1) ->
+  eval_trace phi (v2, t_in) (opt_unskip_cmd c) (final_v2, trace2) ->
+  trace1 = trace2.
+Proof.
 Admitted.
 
 (** ** Main theorem of non-inference preservation *)
