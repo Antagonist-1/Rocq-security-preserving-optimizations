@@ -484,6 +484,29 @@ Proof.
   all: destruct (VarSet.mem x se); congruence.
 Qed.
 
+Lemma mem_lookup_simpl_1 : forall se x,
+  sec_lookup se x = Public
+  <->
+  VarSet.mem x se = false.
+Proof.
+  unfold sec_lookup.
+  split; simpl; intros.
+  - destruct (VarSet.mem x se); congruence.
+  - rewrite H. reflexivity.
+Qed.
+
+
+Lemma mem_lookup_simpl_2 : forall se x,
+  sec_lookup se x = Secret
+  <->
+  VarSet.mem x se = true.
+Proof.
+  unfold sec_lookup.
+  split; simpl; intros.
+  - destruct (VarSet.mem x se); congruence.
+  - rewrite H. reflexivity.
+Qed.
+
 Lemma mem_update_eq : forall se x level,
   sec_lookup (update_sec se x level) x = Public <->
   level = Public.
