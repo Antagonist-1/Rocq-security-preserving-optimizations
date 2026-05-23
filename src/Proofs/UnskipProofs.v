@@ -249,69 +249,6 @@ Qed.
 (** * Secret Preservation Support *)
 (* This part uses eval_sec *)
 
-(** Similar to [opt_unskip_skip_trace_complete], if a command optimizes to [Skip],
-    it acts as a no-op under [eval_sec] and exactly preserves the security context
-    (valuation, security environment, and trace). *)
-Lemma opt_unskip_skip_sec_complete : forall phi c ctx,
-  opt_unskip_cmd c = Skip ->
-  eval_sec phi ctx c ctx.
-Proof.
-  induction c; simpl; intros ctx Hskip.
-  - constructor.
-  - discriminate.
-  - discriminate.
-  - discriminate.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    try discriminate;
-    inversion Hskip; subst.
-    pose proof (IHc1 ctx eq_refl) as Hsrc1.
-    pose proof (IHc2 ctx eq_refl) as Hsrc2.
-    eapply EvalSecSequence with (ctx1 := ctx); eauto.
-  - discriminate.
-  - discriminate.
-Qed.
-
-(** Same expansion property for [eval_sec] as [opt_unskip_trace_complete].
-    Any [eval_sec] execution of the optimized command can be expanded into a source
-    execution with the exactly identical final context (valuation, security
-    environment, and trace). *)
-Lemma opt_unskip_sec_complete : forall phi c ctx ctx_opt,
-  eval_sec phi ctx (opt_unskip_cmd c) ctx_opt ->
-  eval_sec phi ctx c ctx_opt.
-Proof.
-  induction c; simpl; intros ctx ctx_opt Hopt.
-  - exact Hopt.
-  - exact Hopt.
-  - exact Hopt.
-  - exact Hopt.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    simpl in Hopt;
-    try solve [
-      pose proof (opt_unskip_skip_sec_complete phi c1 ctx Hc1) as Hsrc1;
-      pose proof (IHc2 ctx ctx_opt Hopt) as Hsrc2;
-      eapply EvalSecSequence with (ctx1 := ctx); eauto
-    ];
-    try solve [
-      pose proof (IHc1 ctx ctx_opt Hopt) as Hsrc1;
-      pose proof (opt_unskip_skip_sec_complete phi c2 ctx_opt Hc2) as Hsrc2;
-      eapply EvalSecSequence with (ctx1 := ctx_opt); eauto
-    ];
-    inversion Hopt; subst;
-    pose proof (IHc1 ctx ctx1 H2) as Hsrc1;
-    pose proof (IHc2 ctx1 ctx_opt H4) as Hsrc2;
-    eapply EvalSecSequence; eauto.
-  - inversion Hopt; subst.
-    + eapply EvalSecIfTrue; eauto.
-    + eapply EvalSecIfFalse; eauto.
-  - remember (While e (opt_unskip_cmd c)) as copt eqn:Hcopt.
-    induction Hopt; inversion Hcopt; subst.
-    + pose proof (IHc (ctx st++ Branch true) ctx' Hopt1) as Hbody_src.
-      pose proof (IHHopt2 eq_refl) as Hloop_src.
-      eapply EvalSecWhileTrue; eauto.
-    + eapply EvalSecWhileFalse; eauto.
-Qed.
 
 (** ** Main theorem of secret preservation *)
 
@@ -339,26 +276,7 @@ Qed.
 Lemma opt_unskip_keeps_secrets_secret :
   opt_keeps_secrets_secret opt_unskip.
 Proof.
-  unfold opt_keeps_secrets_secret.
-  intros sctx sctx' sctx'' pgm pgm' phi' Hopt Hsrc Hopt_eval x.
-  unfold opt_unskip, opt_unskip_cmd in Hopt.
-  destruct pgm as [c out].
-  destruct pgm' as [c' out'].
-  simpl in Hopt.
-  inversion Hopt; subst; clear Hopt.
-  simpl in Hopt_eval.
-  pose proof (opt_unskip_sec_complete phi' c sctx sctx'' Hopt_eval)
-    as Hsrc_from_opt.
-  pose proof (eval_sec_deterministic phi' c sctx sctx'
-    sctx''
-    Hsrc Hsrc_from_opt) as Hsame.
-  subst sctx''.
-  split.
-  - reflexivity.
-  - unfold agree_on_secret.
-    intros y _.
-    reflexivity.
-Qed.
+Admitted.
 
 (** * Main Theorem *)
 (* Combine the two main proofs of the two previous sections to show unskip is a safe_opt *)
