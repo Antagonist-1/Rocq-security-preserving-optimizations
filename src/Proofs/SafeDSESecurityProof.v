@@ -105,18 +105,6 @@ Proof.
     apply Hagree.
 Qed.
 
-Lemma eval_sec_liveness_coincidence : forall phi c out ctx1 ctx2 ctx1_out,
-  eval_sec phi ctx1 c ctx1_out ->
-  (forall x, sec_lookup (sec_of ctx1) x = sec_lookup (sec_of ctx2) x) ->
-  sec_trace_of ctx1 = sec_trace_of ctx2 ->
-  agree_on (liveness c out) (sec_val_of ctx1) (sec_val_of ctx2) ->
-  exists ctx2_out,
-    eval_sec phi ctx2 c ctx2_out /\
-    (forall x, sec_lookup (sec_of ctx1_out) x = sec_lookup (sec_of ctx2_out) x) /\
-    sec_trace_of ctx1_out = sec_trace_of ctx2_out /\
-    agree_on out (sec_val_of ctx1_out) (sec_val_of ctx2_out).
-Proof.
-Admitted.
 
 Lemma eval_trace_liveness_coincidence : forall phi c out v1 v2 t v1' t1,
   eval_trace phi (v1, t) c (v1', t1) ->
@@ -337,3 +325,23 @@ Proof.
     + VarSetDecide.fsetdec.
     + VarSetDecide.fsetdec.
 Qed.
+
+
+
+Lemma opt_safe_dse_keeps_secrets_secret : 
+  opt_keeps_secrets_secret opt_safe_dse. 
+Proof.
+Admitted.
+
+Theorem opt_safe_dse_secure : forall phi,
+  is_safe_opt phi opt_safe_dse.
+Proof.
+  intros phi.
+  unfold is_safe_opt.
+  split.
+  (* Non-inference preservation *) 
+  - apply opt_safe_dse_helper_preserves_safe_pgm. 
+  (* Secret preservation *)
+  - apply opt_safe_dse_keeps_secrets_secret. 
+Qed.
+
