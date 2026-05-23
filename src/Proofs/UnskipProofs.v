@@ -181,67 +181,9 @@ Proof.
     unfold match_ctx; split; simpl; auto; apply trace_subseq_append_keep; auto.
 Qed.
 
-(* Since [opt_unskip_cmd] no longer removes [If _ Skip Skip], a command can optimize
-   to [Skip] only when it is operationally a no-op with exactly the same trace. *)
-Lemma opt_unskip_skip_trace_complete : forall phi c ctx,
-  opt_unskip_cmd c = Skip ->
-  eval_trace phi ctx c ctx.
 Proof.
-  induction c; simpl; intros ctx Hskip.
-  - constructor.
-  - discriminate.
-  - discriminate.
-  - discriminate.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    try discriminate;
-    inversion Hskip; subst.
-    pose proof (IHc1 ctx eq_refl) as Hsrc1.
-    pose proof (IHc2 ctx eq_refl) as Hsrc2.
-    eapply EvalTraceSequence with (ctx1 := ctx); eauto.
-  - discriminate.
-  - discriminate.
-Qed.
 
-(* Any optimized trace execution can be expanded into a source execution with
-   exactly the same final context. This is true because [opt_unskip_cmd] only removes
-   sequence-level [Skip] commands and keeps all branch-producing syntax. *)
-Lemma opt_unskip_trace_complete : forall phi c ctx ctx_opt,
-  eval_trace phi ctx (opt_unskip_cmd c) ctx_opt ->
-  eval_trace phi ctx c ctx_opt.
 Proof.
-  induction c; simpl; intros ctx ctx_opt Hopt.
-  - exact Hopt.
-  - exact Hopt.
-  - exact Hopt.
-  - exact Hopt.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    simpl in Hopt;
-    try solve [
-      pose proof (opt_unskip_skip_trace_complete phi c1 ctx Hc1) as Hsrc1;
-      pose proof (IHc2 ctx ctx_opt Hopt) as Hsrc2;
-      eapply EvalTraceSequence with (ctx1 := ctx); eauto
-    ];
-    try solve [
-      pose proof (IHc1 ctx ctx_opt Hopt) as Hsrc1;
-      pose proof (opt_unskip_skip_trace_complete phi c2 ctx_opt Hc2) as Hsrc2;
-      eapply EvalTraceSequence with (ctx1 := ctx_opt); eauto
-    ];
-    inversion Hopt; subst;
-    pose proof (IHc1 ctx ctx1 H2) as Hsrc1;
-    pose proof (IHc2 ctx1 ctx_opt H4) as Hsrc2;
-    eapply EvalTraceSequence; eauto.
-  - inversion Hopt; subst.
-    + eapply EvalTraceIfTrue; eauto.
-    + eapply EvalTraceIfFalse; eauto.
-  - remember (While e (opt_unskip_cmd c)) as copt eqn:Hcopt.
-    induction Hopt; inversion Hcopt; subst.
-    + pose proof (IHc (ctx t++ Branch true) ctx' Hopt1) as Hbody_src.
-      pose proof (IHHopt2 eq_refl) as Hloop_src.
-      eapply EvalTraceWhileTrue; eauto.
-    + eapply EvalTraceWhileFalse; eauto.
-Qed.
 
 Lemma opt_unskip_backward : forall phi c ctx_opt ctx_opt_final ctx_src,
   eval_trace phi ctx_opt (opt_unskip_cmd c) ctx_opt_final ->
