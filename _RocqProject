@@ -15,6 +15,7 @@ src/Proofs/SecEnvProofs.v
 src/Proofs/UnsafeDSEProofs.v
 src/Proofs/EvalEquivalence.v
 src/Proofs/SecurityProofs.v
+src/Proofs/SafeDSEAnalysisProofs.v
 src/Proofs/SafeDSEProofs.v
 src/Proofs/SafeDSESecurityProof.v
 src/Examples/SecurityUnit.v

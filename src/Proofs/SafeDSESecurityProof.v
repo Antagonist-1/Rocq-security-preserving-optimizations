@@ -5,6 +5,7 @@ Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.DSE.
 Require Import Proofs.UnskipProofs.
 Require Import Proofs.UnsafeDSEProofs.
+Require Import Proofs.SafeDSEAnalysisProofs.
 Require Import Proofs.SecurityProofs.
 
 Create HintDb dse_db.
@@ -30,6 +31,54 @@ Ltac destruct_agree_while H :=
     pose proof (agree_on_subset _ _ _ _ (Hout _ _ _ _) H)  as Hagree_out;
     clear He Hout
   end.
+
+Lemma sec_env_sub_public : forall se_actual se_static x,
+  sec_env_sub se_actual se_static ->
+  sec_lookup se_static x = Public ->
+  sec_lookup se_actual x = Public.
+Proof.
+  intros se_actual se_static x Hsub Hpub.
+  destruct (sec_lookup se_actual x) eqn:Hactual; auto.
+  pose proof (Hsub x Hactual).
+  congruence.
+Qed.
+
+Lemma interp_sec_public_under_sub : forall e se_actual se_static,
+  sec_env_sub se_actual se_static ->
+  interp_sec e se_static = Public ->
+  interp_sec e se_actual = Public.
+Proof.
+  intros e se_actual se_static Hsub Hpub.
+  destruct (interp_sec e se_actual) eqn:Hactual; auto.
+  pose proof (interp_sec_secret_monotone e se_actual se_static Hsub Hactual).
+  congruence.
+Qed.
+
+Lemma cmov_level_public_under_sub : forall cond e1 e2 se_actual se_static,
+  sec_env_sub se_actual se_static ->
+  join_sec (interp_sec cond se_static)
+    (join_sec (interp_sec e1 se_static) (interp_sec e2 se_static)) = Public ->
+  join_sec (interp_sec cond se_actual)
+    (join_sec (interp_sec e1 se_actual) (interp_sec e2 se_actual)) = Public.
+Proof.
+  intros cond e1 e2 se_actual se_static Hsub Hpub.
+  destruct (join_sec (interp_sec cond se_actual)
+    (join_sec (interp_sec e1 se_actual) (interp_sec e2 se_actual))) eqn:Hactual; auto.
+  pose proof (cmov_level_secret_monotone cond e1 e2 se_actual se_static Hsub Hactual).
+  congruence.
+Qed.
+
+Lemma agree_on_secret_public_update_left : forall se v x a,
+  sec_lookup se x = Public ->
+  agree_on_secret se (v $+ (x, a)) v.
+Proof.
+  unfold agree_on_secret.
+  intros se v x a Hpub y Hsecret.
+  destruct (x ==v y).
+  - subst. congruence.
+  - rewrite lookup_add_ne by congruence.
+    reflexivity.
+Qed.
 
 Lemma eval_trace_liveness_coincidence : forall phi c out v1 v2 t v1' t1,
   eval_trace phi (v1, t) c (v1', t1) ->
@@ -206,70 +255,81 @@ Lemma opt_safe_dse_helper_trace_complete : forall phi c out ctx ctx_opt secrets,
   eval_trace phi ctx (safe_dse_helper c out secrets) ctx_opt ->
   lifts_to phi c out ctx ctx_opt.
 Proof.
-    induction c; simpl; unfold lifts_to in *; intros.
-    - subst. firstorder. 
-    - destruct (VarSet.mem s out) eqn:Hout.
-      + inversion H; subst. firstorder.
-      + destruct (sec_lookup secrets s) eqn:Hsecrets.
-        * inversion H. subst. 
-          destruct ctx_opt as [v_opt t_opt].
-          exists (v_opt $+ (s, interp_arith e v_opt), t_opt).
-          repeat split;
-          simpl in *.
-          econstructor; eauto.
-          apply agree_on_sym;
-          eapply agree_on_update_out; eauto.
-        * firstorder.
-    - firstorder.
-    - destruct (VarSet.mem s out) eqn:Hout.
-      + inversion H; subst; firstorder.
-      + destruct (sec_lookup secrets s) eqn:Hsecrets.
-        * inversion H. subst. 
-          destruct ctx_opt as [v_opt t_opt].
-          destruct (interp_arith e v_opt) eqn:Hinterp.
-          -- exists (v_opt $+ (s, interp_arith e1 v_opt), t_opt).
-             repeat split; simpl.
-             eapply EvalTraceCmovFalse; eauto.
-             all: apply agree_on_sym;
-             eapply agree_on_update_out; eauto.
-          -- exists (v_opt $+ (s, interp_arith e0 v_opt), t_opt).
-             repeat split; simpl.
-             eapply EvalTraceCmovTrue; eauto.
-             all: apply agree_on_sym;
-             eapply agree_on_update_out; eauto.
-        * firstorder.
-    - inversion H; subst. 
-      specialize (IHc1 _ _ _ _ H3). destruct IHc1 as [ctx_out1 IHc1].
-      specialize (IHc2 _ _ _ _ H5). destruct IHc2 as [ctx_out2 IHc2].
-      intuition.
-      rewrite <- H1.
-      pose proof eval_trace_liveness_coincidence as Heval_coincide.
-      destruct ctx1, ctx_out1, ctx_out2.
-      apply agree_on_sym in H7.
-      specialize (Heval_coincide _ _ _ _ _ _ _ _ H2 H7).
-      destruct Heval_coincide as [v_out_final Heval_coincide].
-      exists (v_out_final,l1).
-      repeat split.
-      econstructor.
-      + apply H0.
-      + intuition. simpl in H6. rewrite H6. apply H4.
-      + simpl in *.
-        destruct Heval_coincide.
-        apply agree_on_sym in H9.
-        eapply agree_on_trans; eauto.
-    - inversion H; subst.
-      + specialize (IHc1 _ _ _ _ H7).
-        destruct IHc1 as [ctx_out IHc1].
-        exists ctx_out. intuition.
-        eapply EvalTraceIfTrue; eauto.
-      + specialize (IHc2 _ _ _ _ H6).
-        destruct IHc2 as [ctx_out [Heval [Htrace Hagree]]].
-        exists ctx_out. 
-        repeat split; eauto. 
-        eapply EvalTraceIfFalse; eauto.
-    - apply safe_dse_while_complete with (secrets := secrets).
-        * intros. unfold lifts_to. eapply IHc. apply H0.
-        * apply H.
+  induction c as
+      [| x e
+       | x f e1 e2
+       | x cond e1 e2
+       | c1 IHc1 c2 IHc2
+       | e thn IHthn els IHels
+       | e body IHbody];
+    simpl; unfold lifts_to in *; intros.
+  - subst. firstorder.
+  - destruct (VarSet.mem x out) eqn:Hout.
+    + inversion H; subst. firstorder.
+    + destruct (sec_lookup secrets x) eqn:Hsecret;
+        destruct (interp_sec e secrets) eqn:Hlevel.
+      * inversion H; subst.
+        destruct ctx_opt as [v_opt t_opt].
+        exists (v_opt $+ (x, interp_arith e v_opt), t_opt).
+        repeat split; simpl in *.
+        -- econstructor; eauto.
+        -- apply agree_on_sym. eapply agree_on_update_out; eauto.
+      * inversion H; subst. firstorder.
+      * inversion H; subst. firstorder.
+      * inversion H; subst. firstorder.
+  - inversion H; subst. firstorder.
+  - destruct (VarSet.mem x out) eqn:Hout.
+    + inversion H; subst; firstorder.
+    + destruct (sec_lookup secrets x) eqn:Hsecret;
+        destruct (join_sec (interp_sec cond secrets)
+          (join_sec (interp_sec e1 secrets) (interp_sec e2 secrets))) eqn:Hlevel.
+      * inversion H; subst.
+        destruct ctx_opt as [v_opt t_opt].
+        destruct (interp_arith cond v_opt) eqn:Hinterp.
+        -- exists (v_opt $+ (x, interp_arith e2 v_opt), t_opt).
+           repeat split; simpl.
+           ++ eapply EvalTraceCmovFalse; eauto.
+           ++ apply agree_on_sym. eapply agree_on_update_out; eauto.
+        -- exists (v_opt $+ (x, interp_arith e1 v_opt), t_opt).
+           repeat split; simpl.
+           ++ eapply EvalTraceCmovTrue; eauto; discriminate.
+           ++ apply agree_on_sym. eapply agree_on_update_out; eauto.
+      * inversion H; subst; firstorder.
+      * inversion H; subst; firstorder.
+      * inversion H; subst; firstorder.
+  - inversion H; subst.
+    specialize (IHc1 _ _ _ _ H3).
+    destruct IHc1 as [ctx_out1 [Heval1 [Htrace1 Hagree1]]].
+    specialize (IHc2 _ _ _ _ H5).
+    destruct IHc2 as [ctx_out2 [Heval2 [Htrace2 Hagree2]]].
+    pose proof eval_trace_liveness_coincidence as Heval_coincide.
+    destruct ctx1 as [v_mid t_mid], ctx_out1 as [v_out1 t_out1], ctx_out2 as [v_out2 t_out2].
+    simpl in *. subst t_out1.
+    apply agree_on_sym in Hagree1.
+    specialize (Heval_coincide _ _ _ _ _ _ _ _ Heval2 Hagree1).
+    destruct Heval_coincide as [v_out_final [Heval_coincide Hagree_coin]].
+    exists (v_out_final, t_out2).
+    repeat split.
+    + econstructor.
+      * exact Heval1.
+      * exact Heval_coincide.
+    + exact Htrace2.
+    + simpl in *.
+      apply agree_on_sym in Hagree_coin.
+      eapply agree_on_trans; eauto.
+  - inversion H; subst.
+    + specialize (IHthn _ _ _ _ H7).
+      destruct IHthn as [ctx_out [Heval [Htrace Hagree]]].
+      exists ctx_out.
+      repeat split; eauto.
+      eapply EvalTraceIfTrue; eauto.
+    + specialize (IHels _ _ _ _ H6).
+      destruct IHels as [ctx_out [Heval [Htrace Hagree]]].
+      exists ctx_out.
+      repeat split; eauto.
+      eapply EvalTraceIfFalse; eauto.
+  - exists ctx_opt.
+    repeat split; eauto.
 Qed.
 
 
@@ -291,39 +351,43 @@ Lemma opt_safe_dse_helper_preserves_safe_pgm : forall phi p secrets,
     is_safe_pgm phi p secrets ->
     is_safe_pgm phi (opt_safe_dse p secrets) secrets.
 Proof.
-    pose proof opt_unskip_preserves_safe_pgm as Hunskip.
-    unfold is_safe_pgm, opt_safe_dse in *. 
-    intros phi [c out] secrets [secrets' Hni].
-    specialize (Hunskip phi ((safe_dse_helper c out secrets), out) secrets).
-    destruct Hunskip as [secrets_unskip Hunskip]; eauto.
-    simpl in *.
-    (* We overestimate the new secrets to use all possible values that could be written*)
-    (* This satisfies agree on secret and takes care of possible changes*)
-    exists (VarSet.union secrets (vars_in_cmd (safe_dse_helper c out secrets))).
-    unfold non_inference in *.
-    intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
+  unfold is_safe_pgm, opt_safe_dse in *.
+  intros phi [c out] secrets [secrets' Hni].
+  simpl in *.
+  exists (VarSet.union secrets
+    (vars_in_cmd (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets))).
+  unfold non_inference in *.
+  intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
 
-    pose proof opt_safe_dse_helper_trace_complete as Htrace_complete1.
-    pose proof Htrace_complete1 as Htrace_complete2.
-    specialize (Htrace_complete1  _ _ _ _ _ _ Hopt_eval1).
-    destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 [Htrace1 Hagree1]]].
-    specialize (Htrace_complete2  _ _ _ _ _ _ Hopt_eval2).
-    destruct Htrace_complete2 as [[v2_out trace2_out] [Heval2 [Htrace2 Hagree2]]].
+  pose proof (opt_unskip_trace_complete phi
+    (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets)
+    (v1, t_in) (final_v1, trace1) Hopt_eval1) as Hhelper_eval1.
+  pose proof (opt_unskip_trace_complete phi
+    (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets)
+    (v2, t_in) (final_v2, trace2) Hopt_eval2) as Hhelper_eval2.
+
+  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hhelper_eval1)
+    as Htrace_complete1.
+  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hhelper_eval2)
+    as Htrace_complete2.
+  destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 [Htrace1 Hagree1]]].
+  destruct Htrace_complete2 as [[v2_out trace2_out] [Heval2 [Htrace2 Hagree2]]].
+  simpl in *.
+
+  specialize (Hni v1 v2 t_in v1_out v2_out trace1_out trace2_out).
+  specialize (Hni Hagree Heval1 Heval2).
+  split.
+  - destruct Hni as [Htrace_equal _].
+    congruence.
+  - unfold agree_on_public.
+    intros x Hx.
+    pose proof (eval_trace_frame _ _ _ _ Hhelper_eval1 x) as Hframe1.
+    pose proof (eval_trace_frame _ _ _ _ Hhelper_eval2 x) as Hframe2.
     simpl in *.
-    specialize (Hni v1 v2 t_in v1_out v2_out trace1_out trace2_out).
-    specialize (Hni Hagree Heval1 Heval2).
-    split.
-    - destruct Hni as [Htrace_equal Hagree_out].
-      congruence.
-    - unfold agree_on_public.
-      intros x Hx.
-      pose proof eval_trace_frame as Hetf1.
-      specialize (Hetf1 _ _  _ _ Hopt_eval1).
-      pose proof eval_trace_frame as Hetf2.
-      specialize (Hetf2 _ _  _ _ Hopt_eval2).  
-      simpl in *.
-      rewrite Hetf1.
-      rewrite Hetf2.
-      apply Hagree.
-      all: VarSetDecide.fsetdec.
+    rewrite Hframe1.
+    rewrite Hframe2.
+    + apply Hagree.
+      VarSetDecide.fsetdec.
+    + VarSetDecide.fsetdec.
+    + VarSetDecide.fsetdec.
 Qed.
