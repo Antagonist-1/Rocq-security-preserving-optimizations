@@ -19,6 +19,7 @@ src/Proofs/SafeDSEProofs.v
 src/Proofs/SafeDSESecurityProof.v
 src/Examples/SecurityUnit.v
 src/Examples/SimpleDSE.v
+src/Examples/SafeDSEChecks.v
 src/Examples/SimpleTraces.v
 src/Examples/ProgramSafety.v
 src/Unused/OtherOptims.v
