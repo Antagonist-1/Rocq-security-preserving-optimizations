@@ -80,17 +80,6 @@ Proof.
   congruence.
 Qed.
 
-Lemma agree_on_secret_public_update_left : forall se v x a,
-  sec_lookup se x = Public ->
-  agree_on_secret se (v $+ (x, a)) v.
-Proof.
-  unfold agree_on_secret.
-  intros se v x a Hpub y Hsecret.
-  destruct (x ==v y).
-  - subst. congruence.
-  - rewrite lookup_add_ne by congruence.
-    reflexivity.
-Qed.
 
 Lemma interp_sec_lookup_agree : forall e se1 se2,
   (forall x, sec_lookup se1 x = sec_lookup se2 x) ->
@@ -437,37 +426,6 @@ Definition lifts_to (phi: function_env) (c: cmd) (out: var_set)
     trace_of ctx_out = trace_of ctx_opt /\
     agree_on out (val_of ctx_out) (val_of ctx_opt).
 
-(* specific case of while completeness. original proof was not general enough *)
-(* body is complete -> while loop is complete*)
-Lemma safe_dse_while_complete : forall phi e c out secrets,
-  (forall out' ctx ctx_opt,
-     eval_trace phi ctx (safe_dse_helper c out' secrets) ctx_opt ->
-     lifts_to phi c out' ctx ctx_opt) ->
-  forall ctx ctx_opt,
-    eval_trace phi ctx (While e (safe_dse_helper c (liveness (While e c) out) secrets)) ctx_opt ->
-    lifts_to phi (While e c) out ctx ctx_opt.
-Proof.
-  intros phi e c out secrets Hbody ctx ctx_opt H.
-  (* We remember what the command was (a while), because rocq doesnt. thten all other cases are removed*)
-  remember (While e (safe_dse_helper c (liveness (While e c) out) secrets)) as w eqn:Hw.
-  induction H; inversion Hw; subst; unfold lifts_to in *.
-  - clear IHeval_trace1.
-    specialize (Hbody _ _ _ H1). destruct Hbody as [ctx_mid [Heval_mid [Htrace_mid Hagree_mid]]].
-    specialize (IHeval_trace2 Hw). destruct IHeval_trace2 as [ctx_final [Heval_final [Htrace_final Hagree_final]]].
-    pose proof eval_trace_liveness_coincidence as Heval_coincide.
-    apply agree_on_sym in Hagree_mid.
-    destruct ctx, ctx', ctx'', ctx_mid, ctx_final.
-    specialize (Heval_coincide _ _ _ _ _ _ _ _ Heval_final Hagree_mid).
-    destruct Heval_coincide as [v2_coincide [Heval_coin Hagree_coin]].
-    exists (v2_coincide, l3). split; eauto; simpl in *; subst.
-    + eapply EvalTraceWhileTrue; eauto.
-    + split; [reflexivity|].
-      apply agree_on_sym in Hagree_coin.
-      eapply agree_on_trans; eauto.
-  - exists (ctx t++ Branch false).
-    repeat split.
-    constructor. exact H.
-Qed. 
 
 
 (* opt_dse doesn't modify the trace. well...
