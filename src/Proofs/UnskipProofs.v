@@ -392,7 +392,35 @@ Proof.
     end.
     
   - (* If *)
-    admit.
+    destruct (opt_unskip_cmd c1) eqn:Hc1;
+    destruct (opt_unskip_cmd c2) eqn:Hc2;
+    match goal with
+    | Hc1 : opt_unskip_cmd c1 = Skip,
+      Hc2 : opt_unskip_cmd c2 = Skip |- _ =>
+        inversion Hopt; subst; clear Hopt;
+        
+        (* The optimized 'If' was dropped entirely, so we must evaluate the condition in the source context *)
+        destruct (interp_arith e (val_of ctx_src)) eqn:Heq;
+        [ (* Case 0: False branch *)
+          destruct (opt_unskip_skip_trace_complete phi c2 (ctx_src t++ Branch false) Hc2)
+            as [ctx2_src [Hsrc2 Hmatch2]];
+          exists ctx2_src; split;
+          [ eapply EvalTraceIfFalse; eauto 
+          | eapply match_ctx_trans; [exact Hmatch2 | ];
+            unfold match_ctx in *; destruct Hmatch as [Hval Htrace]; 
+            split; simpl; auto; apply trace_subseq_append_drop; auto ]
+            
+        | (* Case S n: True branch *)
+          destruct (opt_unskip_skip_trace_complete phi c1 (ctx_src t++ Branch true) Hc1)
+            as [ctx1_src [Hsrc1 Hmatch1]];
+          exists ctx1_src; split;
+          [ eapply EvalTraceIfTrue; eauto; intro C; discriminate 
+          | eapply match_ctx_trans; [exact Hmatch1 | ];
+            unfold match_ctx in *; destruct Hmatch as [Hval Htrace]; 
+            split; simpl; auto; apply trace_subseq_append_drop; auto ]
+        ]
+    | _ =>  admit
+    end.
     
   - (* While *)
     eapply opt_unskip_backward_while; eauto.
