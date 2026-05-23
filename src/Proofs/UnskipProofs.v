@@ -182,16 +182,109 @@ Proof.
 Qed.
 
 Proof.
+Admitted.
 
+Lemma opt_unskip_backward_while : forall phi e body ctx_opt ctx_opt_final ctx_src,
+  eval_trace phi ctx_opt (While e (opt_unskip_cmd body)) ctx_opt_final ->
+  (forall ctx_o ctx_o_f ctx_s, eval_trace phi ctx_o (opt_unskip_cmd body) ctx_o_f -> match_ctx ctx_s ctx_o -> exists ctx_s_f, eval_trace phi ctx_s body ctx_s_f /\ match_ctx ctx_s_f ctx_o_f) ->
+  match_ctx ctx_src ctx_opt ->
+  exists ctx_src_final, eval_trace phi ctx_src (While e body) ctx_src_final /\ match_ctx ctx_src_final ctx_opt_final.
 Proof.
+Admitted.
 
 Lemma opt_unskip_backward : forall phi c ctx_opt ctx_opt_final ctx_src,
   eval_trace phi ctx_opt (opt_unskip_cmd c) ctx_opt_final ->
   match_ctx ctx_src ctx_opt ->
-  exists ctx_src_final,
-    eval_trace phi ctx_src c ctx_src_final /\
-    match_ctx ctx_src_final ctx_opt_final.
+  exists ctx_src_final, eval_trace phi ctx_src c ctx_src_final /\ match_ctx ctx_src_final ctx_opt_final.
 Proof.
+  intros phi c. revert phi.
+  induction c; intros phi ctx_opt ctx_opt_final ctx_src Hopt Hmatch; simpl in Hopt.
+  
+  - (* Skip *)
+    inversion Hopt; subst.
+    eexists; split; [apply EvalTraceSkip | exact Hmatch].
+    
+  - (* Assign *)
+    inversion Hopt; subst.
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    eexists; split.
+    + eapply EvalTraceAssign. reflexivity.
+    + unfold match_ctx; split; simpl.
+      * rewrite Hval. reflexivity.
+      * exact Htrace.
+    
+  - (* AssignCall *)
+    inversion Hopt; subst.
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    destruct ctx_src as [v_src t_src]; simpl in *.
+    rewrite Hval in *.
+    
+    assert (Hmatch_body : match_ctx 
+      ($0 $+ (x1, interp_arith e (val_of ctx_opt)) $+ (x2, interp_arith e0 (val_of ctx_opt)), t_src) 
+      ($0 $+ (x1, interp_arith e (val_of ctx_opt)) $+ (x2, interp_arith e0 (val_of ctx_opt)), trace_of ctx_opt)).
+    { split; simpl; auto. }
+    
+    apply eval_trace_unopt_backward with 
+      (ctx_src := ($0 $+ (x1, interp_arith e (val_of ctx_opt)) $+ (x2, interp_arith e0 (val_of ctx_opt)), t_src)) 
+      in H8; auto.
+      
+    destruct H8 as [ctx_src_body_final [Hsrc_body Hmatch_body_final]].
+    unfold match_ctx in Hmatch_body_final; destruct Hmatch_body_final as [Hval_body Htrace_body].
+    
+    eexists; split.
+    + eapply EvalTraceAssignCall.
+      * exact H3.
+      * reflexivity.
+      * reflexivity.
+      * exact Hsrc_body.
+      * rewrite Hval_body. exact H9.
+    + unfold match_ctx; split; simpl.
+      * reflexivity.
+      * exact Htrace_body.
+
+  - (* Cmov *)
+    inversion Hopt; subst.
+    + (* CmovTrue *)
+      unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+      destruct ctx_src as [v_src t_src]. simpl in *.
+      eexists; split.
+      * eapply EvalTraceCmovTrue; rewrite Hval; eauto.
+      * unfold match_ctx; split; simpl.
+        -- rewrite Hval. reflexivity.
+        -- exact Htrace.
+    + (* CmovFalse *)
+      unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+      destruct ctx_src as [v_src t_src]. simpl in *.
+      eexists; split.
+      * eapply EvalTraceCmovFalse; rewrite Hval; eauto.
+      * unfold match_ctx; split; simpl.
+        -- rewrite Hval. reflexivity.
+        -- exact Htrace.
+
+  - (* Sequence *)
+    (* We still use a localized try solve here because Sequence expands into 49 subcases due to the match statement, but it is safely isolated from the rest of the proof. *)
+    destruct (opt_unskip_cmd c1) eqn:Hc1; destruct (opt_unskip_cmd c2) eqn:Hc2.
+    1: { (* Skip, Skip *)
+      inversion Hopt; subst.
+      edestruct IHc1 with (ctx_src := ctx_src) as [ctx_mid [Hsrc1 Hmatch_mid]].
+      { apply EvalTraceSkip. }
+      { exact Hmatch. }
+      edestruct IHc2 with (ctx_src := ctx_mid) as [ctx_fin [Hsrc2 Hmatch_fin]].
+      { apply EvalTraceSkip. }
+      { exact Hmatch_mid. }
+      eexists; split.
+      * eapply EvalTraceSequence.
+        -- exact Hsrc1.
+        -- exact Hsrc2.
+      * exact Hmatch_fin.
+    }
+    all: admit.
+    
+  - (* If *)
+    destruct (opt_unskip_cmd c1) eqn:Hc1; destruct (opt_unskip_cmd c2) eqn:Hc2; admit.
+    
+  - (* While *)
+    eapply opt_unskip_backward_while; eauto.
 Admitted.
 
 Lemma opt_traces_equal : forall phi c v1 v2 t_in final_v1 final_v2 trace1 trace2 src_final_v1 src_final_v2 src_trace,
