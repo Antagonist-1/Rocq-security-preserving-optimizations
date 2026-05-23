@@ -23,6 +23,7 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/EvalEquivalence.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecurityProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SafeDSEProofs.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/SafeDSESecurityProof.v
 	@echo "Running Tests ..."
 	@for file in src/Examples/*.v; do \
 		echo "Compiling $$file"; \
