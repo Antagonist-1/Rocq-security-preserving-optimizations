@@ -30,8 +30,19 @@ Ltac destruct_agree_while H :=
     pose proof (agree_on_subset _ _ _ _ He H) as Hagree_vars; 
     pose proof (while_fixpoint_contains_out) as Hout;
     pose proof (agree_on_subset _ _ _ _ (Hout _ _ _ _) H)  as Hagree_out;
-    clear He Hout
+     clear He Hout
   end.
+
+Ltac solve_interp_from_agree Heval Hagree :=
+  rewrite <- Heval;
+  apply interp_arith_agree;
+  eapply agree_on_subset; [| apply agree_on_sym; exact Hagree];
+  VarSetDecide.fsetdec.
+
+Ltac finish_same_ctx H :=
+  split; [exact H|];
+  split; [intro y; reflexivity|];
+  split; [reflexivity|apply agree_on_refl].
 
 Lemma sec_env_sub_public : forall se_actual se_static x,
   sec_env_sub se_actual se_static ->
@@ -126,12 +137,7 @@ Proof.
     split; [exact Htrace|exact Hagree].
   - destruct (VarSet.mem x out) eqn:Hx.
     + assert (Ha : interp_arith e (sec_val_of ctx2) = a).
-      {
-        rewrite <- H.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H Hagree. }
       exists (((ctx2 sv$+ (x, a)) s$+ (x, interp_sec e (sec_of ctx2)))).
       split.
       * econstructor; eauto.
@@ -160,26 +166,11 @@ Proof.
            ++ apply agree_on_dead_update_both; auto.
   - destruct (VarSet.mem x out) eqn:Hx.
     + assert (Hcond : interp_arith cond (sec_val_of ctx2) = c).
-      {
-        rewrite <- H.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H Hagree. }
       assert (Ha1 : interp_arith e1 (sec_val_of ctx2) = a1).
-      {
-        rewrite <- H1.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H1 Hagree. }
       assert (Ha2 : interp_arith e2 (sec_val_of ctx2) = a2).
-      {
-        rewrite <- H2.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H2 Hagree. }
       exists (((ctx2 sv$+ (x, a1)) s$+ (x,
         join_sec (interp_sec cond (sec_of ctx2))
           (join_sec (interp_sec e1 (sec_of ctx2)) (interp_sec e2 (sec_of ctx2)))))).
@@ -227,26 +218,11 @@ Proof.
               ** apply agree_on_dead_update_both; auto.
   - destruct (VarSet.mem x out) eqn:Hx.
     + assert (Hcond : interp_arith cond (sec_val_of ctx2) = 0).
-      {
-        rewrite <- H.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H Hagree. }
       assert (Ha1 : interp_arith e1 (sec_val_of ctx2) = a1).
-      {
-        rewrite <- H0.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H0 Hagree. }
       assert (Ha2 : interp_arith e2 (sec_val_of ctx2) = a2).
-      {
-        rewrite <- H1.
-        apply interp_arith_agree.
-        eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-        VarSetDecide.fsetdec.
-      }
+      { solve_interp_from_agree H1 Hagree. }
       exists (((ctx2 sv$+ (x, a2)) s$+ (x,
         join_sec (interp_sec cond (sec_of ctx2))
           (join_sec (interp_sec e1 (sec_of ctx2)) (interp_sec e2 (sec_of ctx2)))))).
@@ -293,19 +269,9 @@ Proof.
               ** exact Htrace.
               ** apply agree_on_dead_update_both; auto.
   - assert (Ha1 : interp_arith e1 (sec_val_of ctx2) = a1).
-    {
-      rewrite <- H0.
-      apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-      VarSetDecide.fsetdec.
-    }
+    { solve_interp_from_agree H0 Hagree. }
     assert (Ha2 : interp_arith e2 (sec_val_of ctx2) = a2).
-    {
-      rewrite <- H1.
-      apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-      VarSetDecide.fsetdec.
-    }
+    { solve_interp_from_agree H1 Hagree. }
     assert (Hl1 : interp_sec e1 (sec_of ctx2) = level1).
     {
       rewrite <- H2.
@@ -341,12 +307,7 @@ Proof.
     destruct IHHeval2 as [ctx2_final [IHHeval2 [IHsec2 [IHtrace2 IHHagree2]]]].
     exists ctx2_final. split; [econstructor|]; eauto.
   - assert (Hcond : interp_arith e (sec_val_of ctx2) = c).
-    {
-      rewrite <- H.
-      apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-      VarSetDecide.fsetdec.
-    }
+    { solve_interp_from_agree H Hagree. }
     assert (Hagree_thn : agree_on (liveness thn out) (sec_val_of ctx) (sec_val_of ctx2)).
     {
       eapply agree_on_subset; [| exact Hagree].
@@ -359,12 +320,7 @@ Proof.
     destruct IHHeval as [ctx2' [IHHeval [IHsec [IHtrace IHHagree]]]].
     exists ctx2'. split; [eapply EvalSecIfTrue|]; eauto.
   - assert (Hcond : interp_arith e (sec_val_of ctx2) = 0).
-    {
-      rewrite <- H.
-      apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact Hagree].
-      VarSetDecide.fsetdec.
-    }
+    { solve_interp_from_agree H Hagree. }
     assert (Hagree_els : agree_on (liveness els out) (sec_val_of ctx) (sec_val_of ctx2)).
     {
       eapply agree_on_subset; [| exact Hagree].
@@ -392,12 +348,7 @@ Proof.
       eapply EvalSecWhileTrue; eauto.
       simpl.
       assert (interp_arith e (sec_val_of ctx2) = c).
-      {
-        rewrite <- H.
-        apply interp_arith_agree.
-        apply agree_on_sym.
-        exact Hagree_vars.
-      }
+      { solve_interp_from_agree H Hagree_vars. }
       congruence.
     + split; [exact IHsec2|].
       split; [exact IHtrace2 | exact IHHagree2].
@@ -406,12 +357,7 @@ Proof.
     + eapply EvalSecWhileFalse.
       simpl.
       assert (interp_arith e (sec_val_of ctx2) = 0).
-      {
-        rewrite <- H.
-        apply interp_arith_agree.
-        apply agree_on_sym.
-        exact Hagree_vars.
-      }
+      { solve_interp_from_agree H Hagree_vars. }
       exact H0.
     + split.
       * exact Hsec.
@@ -692,14 +638,10 @@ Proof.
        | e body IHbody];
     simpl; intros out secrets ctx ctx_opt Hsub Hopt.
   - exists ctx_opt.
-    split; [exact Hopt|].
-    split; [intro y; reflexivity|].
-    split; [reflexivity|apply agree_on_refl].
+    finish_same_ctx Hopt.
   - destruct (VarSet.mem x out) eqn:Hout.
     + exists ctx_opt.
-      split; [exact Hopt|].
-      split; [intro y; reflexivity|].
-      split; [reflexivity|apply agree_on_refl].
+      finish_same_ctx Hopt.
     + destruct (sec_lookup secrets x) eqn:Hsecret;
         destruct (interp_sec e secrets) eqn:Hlevel.
       * inversion Hopt; subst.
@@ -715,26 +657,16 @@ Proof.
               ** reflexivity.
               ** simpl. eapply agree_on_dead_update_left; eauto. apply agree_on_refl.
       * exists ctx_opt.
-        split; [exact Hopt|].
-        split; [intro y; reflexivity|].
-        split; [reflexivity|apply agree_on_refl].
+        finish_same_ctx Hopt.
       * exists ctx_opt.
-        split; [exact Hopt|].
-        split; [intro y; reflexivity|].
-        split; [reflexivity|apply agree_on_refl].
+        finish_same_ctx Hopt.
       * exists ctx_opt.
-        split; [exact Hopt|].
-        split; [intro y; reflexivity|].
-        split; [reflexivity|apply agree_on_refl].
+        finish_same_ctx Hopt.
   - exists ctx_opt.
-    split; [exact Hopt|].
-    split; [intro y; reflexivity|].
-    split; [reflexivity|apply agree_on_refl].
+    finish_same_ctx Hopt.
   - destruct (VarSet.mem x out) eqn:Hout.
     + exists ctx_opt.
-      split; [exact Hopt|].
-      split; [intro y; reflexivity|].
-      split; [reflexivity|apply agree_on_refl].
+      finish_same_ctx Hopt.
     + destruct (sec_lookup secrets x) eqn:Hsecret;
         destruct (join_sec (interp_sec cond secrets)
           (join_sec (interp_sec e1 secrets) (interp_sec e2 secrets))) eqn:Hlevel.
@@ -760,17 +692,11 @@ Proof.
                  --- reflexivity.
                  --- simpl. eapply agree_on_dead_update_left; eauto. apply agree_on_refl.
       * exists ctx_opt.
-        split; [exact Hopt|].
-        split; [intro y; reflexivity|].
-        split; [reflexivity|apply agree_on_refl].
+        finish_same_ctx Hopt.
       * exists ctx_opt.
-        split; [exact Hopt|].
-        split; [intro y; reflexivity|].
-        split; [reflexivity|apply agree_on_refl].
+        finish_same_ctx Hopt.
       * exists ctx_opt.
-        split; [exact Hopt|].
-        split; [intro y; reflexivity|].
-        split; [reflexivity|apply agree_on_refl].
+        finish_same_ctx Hopt.
   - inversion Hopt; subst.
     specialize (IHc1 (liveness c2 out) secrets ctx ctx1 Hsub H2).
     destruct IHc1 as [ctx1_src [Heval1_src [Hsec_eq1 [Htrace_eq1 Hagree1]]]].
@@ -818,9 +744,7 @@ Proof.
       split; [exact Hsec_eq|].
       split; [exact Htrace_eq|exact Hagree].
   - exists ctx_opt.
-    split; [exact Hopt|].
-    split; [intro y; reflexivity|].
-    split; [reflexivity|apply agree_on_refl].
+    finish_same_ctx Hopt.
 Qed.
 
 Lemma opt_safe_dse_core_keeps_secrets_secret :
