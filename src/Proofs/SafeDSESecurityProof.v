@@ -756,6 +756,7 @@ Proof.
   - finish_sec_same Hopt.
 Qed.
 
+(* Main theorem for secret preservation on the helper*)
 Lemma opt_safe_dse_core_keeps_secrets_secret :
   opt_keeps_secrets_secret opt_safe_dse_core.
 Proof.
@@ -780,6 +781,7 @@ Proof.
   - eapply agree_on_protected_out_implies_agree_on_secret; eauto.
 Qed.
 
+(* Needed for composition *)
 Lemma opt_safe_dse_core_eval_sec_sound :
   opt_eval_sec_sound opt_safe_dse_core.
 Proof.
