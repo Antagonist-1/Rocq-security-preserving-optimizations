@@ -42,6 +42,22 @@ Ltac solve_interp_from_agree Heval Hagree :=
   eapply agree_on_subset; [| apply agree_on_sym; exact Hagree];
   VarSetDecide.fsetdec.
 
+Ltac finish_trace_same H :=
+  eexists; split; [exact H | constructor; [reflexivity | apply agree_on_refl]].
+
+Ltac finish_sec_same H :=
+  eexists; split; [exact H | constructor; [intro y; reflexivity | reflexivity | apply agree_on_refl]].
+
+(** * Records to define properties *) 
+(* instead of using conjunctions, for better readability (avoid  repeated split) *)
+
+
+(* Two context coincide if they have the same trace and they agree on the output variables. *) 
+Record trace_coincide (out : var_set) (ctx_src ctx_opt : context) : Prop := {
+  trace_coincide_trace : trace_of ctx_src = trace_of ctx_opt;
+  trace_coincide_vals : agree_on out (val_of ctx_src) (val_of ctx_opt)
+}.
+
 (* Two sec_context coincide if : 1. their sec_env are the same, 2. their traces are the same, 3. they agree on the output variables. *)
 Record sec_coincide (out : var_set) (ctx1 ctx2 : sec_context) : Prop := {
   sec_coincide_sec : forall x,
@@ -50,10 +66,8 @@ Record sec_coincide (out : var_set) (ctx1 ctx2 : sec_context) : Prop := {
   sec_coincide_vals : agree_on out (sec_val_of ctx1) (sec_val_of ctx2)
 }.
 
-Ltac finish_same_ctx H :=
-  split; [exact H|];
-  constructor;
-  [intro y; reflexivity | reflexivity | apply agree_on_refl].
+
+
 
 Lemma sec_env_sub_public : forall se_actual se_static x,
   sec_env_sub se_actual se_static ->
@@ -179,23 +193,18 @@ Proof.
     simpl. assert (interp_arith e v1' = interp_arith e v2) by (apply interp_arith_agree; eauto). congruence.
 Qed.
 
-Definition lifts_to (phi: function_env) (c: cmd) (out: var_set)
-                     (ctx ctx_opt: context) : Prop :=
-  exists ctx_out,
-    eval_trace phi ctx c ctx_out /\
-    trace_of ctx_out = trace_of ctx_opt /\
-    agree_on out (val_of ctx_out) (val_of ctx_opt).
-
-
-
 (* opt_dse doesn't modify the trace. well...
 the trace is not modified. but the final valuation is.
 so I need to be more precise:
 *)
 
+(* Every traced execution of safe_dse_helper can be matched to an evaluation of the source program with
+   the same trace and the same out *)
 Lemma opt_safe_dse_helper_trace_complete : forall phi c out ctx ctx_opt secrets,
   eval_trace phi ctx (safe_dse_helper c out secrets) ctx_opt ->
-  lifts_to phi c out ctx ctx_opt.
+  exists ctx_src,
+    eval_trace phi ctx c ctx_src /\
+    trace_coincide out ctx_src ctx_opt.
 Proof.
   induction c as
       [| x e
@@ -203,31 +212,47 @@ Proof.
        | x cond e1 e2
        | c1 IHc1 c2 IHc2
        | e thn IHthn els IHels
-       | e body IHbody]; simpl; unfold lifts_to in *; intros.
-  - subst; firstorder.
-  - destruct (VarSet.mem x out) eqn:Hout; [inversion H; subst; firstorder|].
+       | e body IHbody]; simpl; intros.
+  - finish_trace_same H.
+  - destruct (VarSet.mem x out) eqn:Hout; [finish_trace_same H|].
     destruct (sec_lookup secrets x) eqn:Hsecret;
       destruct (interp_sec e secrets) eqn:Hlevel;
-      try (inversion H; subst; firstorder).
+      try (finish_trace_same H).
+    inversion H; subst.
     destruct ctx_opt as [v_opt t_opt].
     exists (v_opt $+ (x, interp_arith e v_opt), t_opt).
-    repeat split; simpl in *; [econstructor; eauto | apply agree_on_sym; eapply agree_on_update_out; eauto].
-  - inversion H; subst; firstorder.
-  - destruct (VarSet.mem x out) eqn:Hout; [inversion H; subst; firstorder|].
+    split.
+    + econstructor; eauto.
+    + constructor; simpl in *.
+      * reflexivity.
+      * apply agree_on_sym. eapply agree_on_update_out; eauto.
+  - finish_trace_same H.
+  - destruct (VarSet.mem x out) eqn:Hout; [finish_trace_same H|].
     destruct (sec_lookup secrets x) eqn:Hsecret;
       destruct (join_sec (interp_sec cond secrets)
         (join_sec (interp_sec e1 secrets) (interp_sec e2 secrets))) eqn:Hlevel;
-      try (inversion H; subst; firstorder).
+      try (finish_trace_same H).
+    inversion H; subst.
     destruct ctx_opt as [v_opt t_opt].
     destruct (interp_arith cond v_opt) eqn:Hinterp.
     + exists (v_opt $+ (x, interp_arith e2 v_opt), t_opt).
-      repeat split; simpl; [eapply EvalTraceCmovFalse; eauto | apply agree_on_sym; eapply agree_on_update_out; eauto].
+      split.
+      * eapply EvalTraceCmovFalse; eauto.
+      * constructor; simpl.
+        -- reflexivity.
+        -- apply agree_on_sym. eapply agree_on_update_out; eauto.
     + exists (v_opt $+ (x, interp_arith e1 v_opt), t_opt).
-      repeat split; simpl; [eapply EvalTraceCmovTrue; eauto; discriminate | apply agree_on_sym; eapply agree_on_update_out; eauto].
+      split.
+      * eapply EvalTraceCmovTrue; eauto.
+      * constructor; simpl.
+        -- reflexivity.
+        -- apply agree_on_sym. eapply agree_on_update_out; eauto.
   - inversion H; subst. specialize (IHc1 _ _ _ _ H3).
-    destruct IHc1 as [ctx_out1 [Heval1 [Htrace1 Hagree1]]].
+    destruct IHc1 as [ctx_out1 [Heval1 Hcoin1]].
+    destruct Hcoin1 as [Htrace1 Hagree1].
     specialize (IHc2 _ _ _ _ H5).
-    destruct IHc2 as [ctx_out2 [Heval2 [Htrace2 Hagree2]]].
+    destruct IHc2 as [ctx_out2 [Heval2 Hcoin2]].
+    destruct Hcoin2 as [Htrace2 Hagree2].
     pose proof eval_trace_liveness_coincidence as Heval_coincide.
     destruct ctx1 as [v_mid t_mid], ctx_out1 as [v_out1 t_out1], ctx_out2 as [v_out2 t_out2].
     simpl in *. subst t_out1.
@@ -235,17 +260,22 @@ Proof.
     specialize (Heval_coincide _ _ _ _ _ _ _ _ Heval2 Hagree1).
     destruct Heval_coincide as [v_out_final [Heval_coincide Hagree_coin]].
     exists (v_out_final, t_out2).
-    repeat split; [econstructor; [exact Heval1 | exact Heval_coincide] | exact Htrace2 |].
-    simpl in *. apply agree_on_sym in Hagree_coin. eapply agree_on_trans; eauto.
+    split.
+    + econstructor; [exact Heval1 | exact Heval_coincide].
+    + constructor; [exact Htrace2|].
+      simpl in *. apply agree_on_sym in Hagree_coin. eapply agree_on_trans; eauto.
   - inversion H; subst.
-    + specialize (IHthn _ _ _ _ H7). destruct IHthn as [ctx_out [Heval [Htrace Hagree]]].
-      exists ctx_out. repeat split; eauto. eapply EvalTraceIfTrue; eauto.
-    + specialize (IHels _ _ _ _ H6). destruct IHels as [ctx_out [Heval [Htrace Hagree]]].
-      exists ctx_out. repeat split; eauto. eapply EvalTraceIfFalse; eauto.
-  - exists ctx_opt. repeat split; eauto.
+    + specialize (IHthn _ _ _ _ H7). destruct IHthn as [ctx_out [Heval Hcoin]].
+      exists ctx_out. split; [eapply EvalTraceIfTrue; eauto | exact Hcoin].
+    + specialize (IHels _ _ _ _ H6). destruct IHels as [ctx_out [Heval Hcoin]].
+      exists ctx_out. split; [eapply EvalTraceIfFalse; eauto | exact Hcoin].
+  - finish_trace_same H.
 Qed.
 
 
+(* eval_trace only updated var that occur in the command. *) 
+(* Variables not mentioned in the optimized command are unchanged,
+   so public agreement for them follows from initial agreement. *)
 Lemma eval_trace_frame : forall phi ctx c ctx',
     eval_trace phi ctx c ctx' ->
     forall x,  ~ VarSet.In x (vars_in_cmd c) -> (val_of ctx') $? x = (val_of ctx) $? x.
@@ -259,7 +289,8 @@ Proof.
 Qed.
     
 
-
+(** ** Main theorem for non inference preservation *)
+(* Relies on the fact that opt_unskip preservers the trace *)
 Lemma opt_safe_dse_helper_preserves_safe_pgm : forall phi p secrets,
     is_safe_pgm phi p secrets ->
     is_safe_pgm phi (opt_safe_dse p secrets) secrets.
@@ -283,8 +314,10 @@ Proof.
     as Htrace_complete1.
   pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hhelper_eval2)
     as Htrace_complete2.
-  destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 [Htrace1 Hagree1]]].
-  destruct Htrace_complete2 as [[v2_out trace2_out] [Heval2 [Htrace2 Hagree2]]].
+  destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 Hcoin1]].
+  destruct Hcoin1 as [Htrace1 Hagree1].
+  destruct Htrace_complete2 as [[v2_out trace2_out] [Heval2 Hcoin2]].
+  destruct Hcoin2 as [Htrace2 Hagree2].
   simpl in *.
 
   specialize (Hni v1 v2 t_in v1_out v2_out trace1_out trace2_out).
@@ -594,11 +627,9 @@ Proof.
        | e thn IHthn els IHels
        | e body IHbody];
     simpl; intros out secrets ctx ctx_opt Hsub Hopt.
-  - exists ctx_opt.
-    finish_same_ctx Hopt.
+  - finish_sec_same Hopt.
   - destruct (VarSet.mem x out) eqn:Hout.
-    + exists ctx_opt.
-      finish_same_ctx Hopt.
+    + finish_sec_same Hopt.
     + destruct (sec_lookup secrets x) eqn:Hsecret;
         destruct (interp_sec e secrets) eqn:Hlevel.
       * inversion Hopt; subst.
@@ -612,17 +643,12 @@ Proof.
            ++ intro y. simpl. apply sec_lookup_update_public_id. exact Hpub_actual.
            ++ reflexivity.
            ++ simpl. eapply agree_on_dead_update_left; eauto. apply agree_on_refl.
-      * exists ctx_opt.
-        finish_same_ctx Hopt.
-      * exists ctx_opt.
-        finish_same_ctx Hopt.
-      * exists ctx_opt.
-        finish_same_ctx Hopt.
-  - exists ctx_opt.
-    finish_same_ctx Hopt.
+      * finish_sec_same Hopt.
+      * finish_sec_same Hopt.
+      * finish_sec_same Hopt.
+  - finish_sec_same Hopt.
   - destruct (VarSet.mem x out) eqn:Hout.
-    + exists ctx_opt.
-      finish_same_ctx Hopt.
+    + finish_sec_same Hopt.
     + destruct (sec_lookup secrets x) eqn:Hsecret;
         destruct (join_sec (interp_sec cond secrets)
           (join_sec (interp_sec e1 secrets) (interp_sec e2 secrets))) eqn:Hlevel.
@@ -645,12 +671,9 @@ Proof.
               ** intro y. simpl. apply sec_lookup_update_public_id. exact Hpub_actual.
               ** reflexivity.
               ** simpl. eapply agree_on_dead_update_left; eauto. apply agree_on_refl.
-      * exists ctx_opt.
-        finish_same_ctx Hopt.
-      * exists ctx_opt.
-        finish_same_ctx Hopt.
-      * exists ctx_opt.
-        finish_same_ctx Hopt.
+      * finish_sec_same Hopt.
+      * finish_sec_same Hopt.
+      * finish_sec_same Hopt.
   - inversion Hopt; subst.
     specialize (IHc1 (liveness c2 out) secrets ctx ctx1 Hsub H2).
     destruct IHc1 as [ctx1_src [Heval1_src Hcoin1]].
@@ -695,8 +718,7 @@ Proof.
       destruct IHels as [ctx_src [Heval_src Hcoin]].
       exists ctx_src.
       split; [eapply EvalSecIfFalse; eauto|exact Hcoin].
-  - exists ctx_opt.
-    finish_same_ctx Hopt.
+  - finish_sec_same Hopt.
 Qed.
 
 Lemma opt_safe_dse_core_keeps_secrets_secret :
