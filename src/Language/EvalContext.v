@@ -120,3 +120,9 @@ Lemma trace_subseq_refl : forall A (l : list A),
 Proof.
   induction l; constructor; auto.
 Qed.
+
+Lemma match_ctx_refl : forall ctx,
+  match_ctx ctx ctx.
+Proof.
+  intros ctx. unfold match_ctx. split; [reflexivity | apply trace_subseq_refl].
+Qed.
