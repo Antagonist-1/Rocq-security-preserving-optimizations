@@ -390,37 +390,51 @@ Proof.
             [eapply EvalTraceSequence; eauto | exact Hmatch2]
         end
     end.
+- (* If *)
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    simpl in Hopt.
+    destruct (opt_unskip_cmd c1) eqn:Hc1, (opt_unskip_cmd c2) eqn:Hc2.
     
-  - (* If *)
-    destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    match goal with
-    | Hc1 : opt_unskip_cmd c1 = Skip,
-      Hc2 : opt_unskip_cmd c2 = Skip |- _ =>
-        inversion Hopt; subst; clear Hopt;
-        
-        (* The optimized 'If' was dropped entirely, so we must evaluate the condition in the source context *)
-        destruct (interp_arith e (val_of ctx_src)) eqn:Heq;
-        [ (* Case 0: False branch *)
-          destruct (opt_unskip_skip_trace_complete phi c2 (ctx_src t++ Branch false) Hc2)
-            as [ctx2_src [Hsrc2 Hmatch2]];
-          exists ctx2_src; split;
-          [ eapply EvalTraceIfFalse; eauto 
-          | eapply match_ctx_trans; [exact Hmatch2 | ];
-            unfold match_ctx in *; destruct Hmatch as [Hval Htrace]; 
-            split; simpl; auto; apply trace_subseq_append_drop; auto ]
-            
-        | (* Case S n: True branch *)
-          destruct (opt_unskip_skip_trace_complete phi c1 (ctx_src t++ Branch true) Hc1)
-            as [ctx1_src [Hsrc1 Hmatch1]];
-          exists ctx1_src; split;
-          [ eapply EvalTraceIfTrue; eauto; intro C; discriminate 
-          | eapply match_ctx_trans; [exact Hmatch1 | ];
-            unfold match_ctx in *; destruct Hmatch as [Hval Htrace]; 
-            split; simpl; auto; apply trace_subseq_append_drop; auto ]
-        ]
-    | _ =>  admit
-    end.
+    1: { (* Skip, Skip *)
+      inversion Hopt; subst; clear Hopt;
+    destruct (interp_arith e (val_of ctx_src)) eqn:Heq;
+    [ (* False branch (nat evaluates to 0) *)
+      destruct (opt_unskip_skip_trace_complete phi c2 (ctx_src t++ Branch false) Hc2) as [ctx2_src [Hsrc2 Hmatch2]];
+      exists ctx2_src; split;
+      [ eapply EvalTraceIfFalse; [ eassumption | exact Hsrc2 ]
+      | eapply match_ctx_trans; [exact Hmatch2 | split; simpl; auto; apply trace_subseq_append_drop; exact Htrace ] ]
+    | (* True branch (nat evaluates to S n) *)
+      destruct (opt_unskip_skip_trace_complete phi c1 (ctx_src t++ Branch true) Hc1) as [ctx1_src [Hsrc1 Hmatch1]];
+      exists ctx1_src; split;
+      [ eapply EvalTraceIfTrue; [ eassumption | intro C; discriminate | exact Hsrc1 ]
+      | eapply match_ctx_trans; [exact Hmatch1 | split; simpl; auto; apply trace_subseq_append_drop; exact Htrace ] ]
+    ].
+    }
+      
+    2: { (* Skip, s <- e0 *)
+      inversion Hopt; subst; clear Hopt.
+      * (* True branch (EvalTraceIfTrue) *)
+        assert (Hmatch_branch: match_ctx (ctx_src t++ Branch true) (ctx_opt t++ Branch true))
+          by (split; simpl; [ exact Hval | apply trace_subseq_append_keep; exact Htrace ]).
+        edestruct IHc1 as [ctx_fin [Hsrc1 Hmatch_fin]]; [ eassumption | exact Hmatch_branch | ].
+        exists ctx_fin; split.
+        -- (* Explicitly provide 'c' to prevent Coq from guessing wrong *)
+           eapply EvalTraceIfTrue with (c := interp_arith e (val_of ctx_opt)).
+           ++ rewrite Hval. reflexivity.
+           ++ eassumption.
+           ++ exact Hsrc1.
+        -- exact Hmatch_fin.
+      * (* False branch (EvalTraceIfFalse) *)
+        assert (Hmatch_branch: match_ctx (ctx_src t++ Branch false) (ctx_opt t++ Branch false))
+          by (split; simpl; [ exact Hval | apply trace_subseq_append_keep; exact Htrace ]).
+        edestruct IHc2 as [ctx_fin [Hsrc2 Hmatch_fin]]; [ eassumption | exact Hmatch_branch | ].
+        exists ctx_fin; split.
+        -- eapply EvalTraceIfFalse.
+           ++ rewrite Hval. eassumption. 
+           ++ exact Hsrc2.
+        -- exact Hmatch_fin.
+    }
+    all: admit.
     
   - (* While *)
     eapply opt_unskip_backward_while; eauto.
