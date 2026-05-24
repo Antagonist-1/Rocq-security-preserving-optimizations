@@ -3,6 +3,9 @@ Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.DSE.
+Require Import Language.Optimizations.Safe.Unskip.
+Require Import Proofs.SafeDSEProofs.
+Require Import Proofs.EvalEquivalence.
 Require Import Proofs.SecEnvProofs.
 Require Import Proofs.UnskipProofs.
 Require Import Proofs.UnsafeDSEProofs.
@@ -285,17 +288,20 @@ Proof.
     all: try (apply IHeval_trace; VarSetDecide.fsetdec).
     all: try (rewrite IHeval_trace2 by VarSetDecide.fsetdec;
       apply IHeval_trace1; VarSetDecide.fsetdec).
-    all: reflexivity.
+     all: reflexivity.
 Qed.
+
+Definition opt_safe_dse_core (pgm: program) (secrets: sec_env) : program :=
+  (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets,
+   output_of pgm).
     
 
 (** ** Main theorem for non inference preservation *)
-(* Relies on the fact that opt_unskip preservers the trace *)
-Lemma opt_safe_dse_helper_preserves_safe_pgm : forall phi p secrets,
+Lemma opt_safe_dse_core_preserves_safe_pgm : forall phi p secrets,
     is_safe_pgm phi p secrets ->
-    is_safe_pgm phi (opt_safe_dse p secrets) secrets.
+    is_safe_pgm phi (opt_safe_dse_core p secrets) secrets.
 Proof.
-  unfold is_safe_pgm, opt_safe_dse in *.
+  unfold is_safe_pgm, opt_safe_dse_core in *.
   intros phi [c out] secrets [secrets' Hni].
   simpl in *.
   exists (VarSet.union secrets
@@ -303,16 +309,9 @@ Proof.
   unfold non_inference in *.
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
 
-  pose proof (opt_unskip_trace_complete phi
-    (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets)
-    (v1, t_in) (final_v1, trace1) Hopt_eval1) as Hhelper_eval1.
-  pose proof (opt_unskip_trace_complete phi
-    (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets)
-    (v2, t_in) (final_v2, trace2) Hopt_eval2) as Hhelper_eval2.
-
-  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hhelper_eval1)
+  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hopt_eval1)
     as Htrace_complete1.
-  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hhelper_eval2)
+  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hopt_eval2)
     as Htrace_complete2.
   destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 Hcoin1]].
   destruct Hcoin1 as [Htrace1 Hagree1].
@@ -327,8 +326,8 @@ Proof.
     congruence.
   - unfold agree_on_public.
     intros x Hx.
-    pose proof (eval_trace_frame _ _ _ _ Hhelper_eval1 x) as Hframe1.
-    pose proof (eval_trace_frame _ _ _ _ Hhelper_eval2 x) as Hframe2.
+    pose proof (eval_trace_frame _ _ _ _ Hopt_eval1 x) as Hframe1.
+    pose proof (eval_trace_frame _ _ _ _ Hopt_eval2 x) as Hframe2.
     simpl in *.
     rewrite Hframe1.
     rewrite Hframe2.
@@ -340,10 +339,6 @@ Qed.
 
 (** * 3. Secret preservation (eval_sec) *)
 
-
-Definition opt_safe_dse_core (pgm: program) (secrets: sec_env) : program :=
-  (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets,
-   output_of pgm).
 
 Lemma sec_lookup_update_public_id : forall se x,
   sec_lookup se x = Public ->
@@ -745,26 +740,34 @@ Proof.
   - eapply agree_on_protected_out_implies_agree_on_secret; eauto.
 Qed.
 
-Lemma opt_safe_dse_keeps_secrets_secret : 
-  opt_keeps_secrets_secret opt_safe_dse. 
+Lemma opt_safe_dse_core_eval_sec_sound :
+  opt_eval_sec_sound opt_safe_dse_core.
 Proof.
-  unfold opt_keeps_secrets_secret, opt_safe_dse.
-  intros sctx sctx' sctx'' pgm pgm' phi Hopt Hsrc Hopt_eval x.
-  destruct pgm as [c out].
-  destruct pgm' as [c' out'].
-  simpl in Hopt.
-  inversion Hopt; subst; clear Hopt.
-  simpl in Hopt_eval.
-  pose proof (opt_unskip_sec_complete phi
-    (safe_dse_helper c (VarSet.union out' (sec_post c (sec_of sctx))) (sec_of sctx))
-    sctx sctx'' Hopt_eval) as Hhelper_eval.
-  pose proof opt_safe_dse_core_keeps_secrets_secret as Hcore.
-  unfold opt_keeps_secrets_secret in Hcore.
-  specialize (Hcore sctx sctx' sctx''
-    (c, out')
-    (safe_dse_helper c (VarSet.union out' (sec_post c (sec_of sctx))) (sec_of sctx), out')
-    phi eq_refl Hsrc Hhelper_eval x).
-  exact Hcore.
+  unfold opt_eval_sec_sound, opt_safe_dse_core.
+  intros phi sctx sctx' [c out] Hsrc.
+  destruct sctx as [[v se] t].
+  destruct sctx' as [[v' se'] t'].
+  simpl in *.
+  pose proof (Eval_proj_sec_trace phi (v, se, t) c (v', se', t') Hsrc) as Heval.
+  pose proof (safe_dse_helper_sound phi c
+    (VarSet.union out (sec_post c se))
+    v v v' se (agree_on_refl _ _) Heval) as Hsound.
+  destruct Hsound as [v_opt [Hopt _]].
+  destruct (Eval_lift_trace_sec phi v
+    (safe_dse_helper c (VarSet.union out (sec_post c se)) se)
+    v_opt Hopt se t) as [sec_opt [trace_opt Hsec_opt]].
+  exists (v_opt, sec_opt, trace_opt).
+  exact Hsec_opt.
+Qed.
+
+Theorem opt_safe_dse_core_secure : forall phi,
+  is_safe_opt phi opt_safe_dse_core.
+Proof.
+  intros phi.
+  unfold is_safe_opt.
+  split.
+  - apply opt_safe_dse_core_preserves_safe_pgm.
+  - apply opt_safe_dse_core_keeps_secrets_secret.
 Qed.
 
 
@@ -774,10 +777,9 @@ Theorem opt_safe_dse_secure : forall phi,
   is_safe_opt phi opt_safe_dse.
 Proof.
   intros phi.
-  unfold is_safe_opt.
-  split.
-  (* Non-inference preservation *) 
-  - apply opt_safe_dse_helper_preserves_safe_pgm. 
-  (* Secret preservation *)
-  - apply opt_safe_dse_keeps_secrets_secret. 
+  change (is_safe_opt phi (compose_opt opt_unskip opt_safe_dse_core)).
+  eapply is_safe_opt_compose.
+  - apply opt_safe_dse_core_secure.
+  - apply opt_unskip_secure.
+  - apply opt_safe_dse_core_eval_sec_sound.
 Qed.

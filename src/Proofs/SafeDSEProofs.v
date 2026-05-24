@@ -244,11 +244,10 @@ Proof.
     exists v_while2. split; assumption.
   - assert (Hwhile : eval phi v (While e body) v).
     { eapply EvalWhileFalse; eauto. }
-    destruct (eval_liveness_coincidence phi (While e body) out v v_2 v Hwhile H_agree)
-      as [v_while2 [H_while2 H_agree_while2]].
-    exists v_while2. split; assumption.
+     destruct (eval_liveness_coincidence phi (While e body) out v v_2 v Hwhile H_agree)
+       as [v_while2 [H_while2 H_agree_while2]].
+     exists v_while2. split; assumption.
 Qed.
-
 
 Lemma opt_safe_dse_sound : forall phi pgm secrets v v',
   eval phi v (cmd_of pgm) v' ->
