@@ -425,3 +425,52 @@ Proof.
     + lia.
     + reflexivity.
 Qed.
+
+Lemma eval_trace_prefix : forall phi c ctx ctx_final,
+  eval_trace phi ctx c ctx_final ->
+  exists t, trace_of ctx_final = trace_of ctx ++ t.
+Proof.
+  intros phi c ctx ctx_final H.
+  induction H; simpl.
+  - exists nil. rewrite app_nil_r. reflexivity.
+  - exists nil. rewrite app_nil_r. reflexivity.
+  - exists nil. rewrite app_nil_r. reflexivity.
+  - exists nil. rewrite app_nil_r. reflexivity.
+  - destruct IHeval_trace as [t Ht]. exists t. exact Ht.
+  - destruct IHeval_trace1 as [t1 Ht1]. destruct IHeval_trace2 as [t2 Ht2].
+    exists (t1 ++ t2). rewrite Ht2, Ht1. rewrite app_assoc. reflexivity.
+  - destruct IHeval_trace as [t Ht]. exists (Branch true :: t).
+    rewrite Ht. simpl. rewrite <- app_assoc. reflexivity.
+  - destruct IHeval_trace as [t Ht]. exists (Branch false :: t).
+    rewrite Ht. simpl. rewrite <- app_assoc. reflexivity.
+  - destruct IHeval_trace1 as [t1 Ht1]. destruct IHeval_trace2 as [t2 Ht2].
+    exists (Branch true :: t1 ++ t2). rewrite Ht2, Ht1. simpl.
+    do 2 rewrite <- app_assoc. reflexivity.
+  - exists [Branch false]. reflexivity.
+Qed.
+
+Lemma branch_contradiction : forall A (t_in: list A) t1 t2 b1 b2,
+  t_in ++ b1 :: t1 = t_in ++ b2 :: t2 ->
+  b1 = b2.
+Proof.
+  intros A t_in t1 t2 b1 b2 H.
+  apply app_inv_head in H. inversion H. reflexivity.
+Qed.
+
+Definition is_prefix {A} (t1 T : list A) := exists tail, T = t1 ++ tail.
+
+Lemma prefix_trans : forall A (t1 t2 T : list A),
+  is_prefix t1 t2 -> is_prefix t2 T -> is_prefix t1 T.
+Proof.
+  intros A t1 t2 T [tail1 H1] [tail2 H2].
+  exists (tail1 ++ tail2). subst. rewrite app_assoc. reflexivity.
+Qed.
+
+Lemma eval_trace_is_prefix : forall phi c ctx ctx_final,
+  eval_trace phi ctx c ctx_final ->
+  is_prefix (trace_of ctx) (trace_of ctx_final).
+Proof.
+  intros phi c ctx ctx_final H.
+  destruct (eval_trace_prefix _ _ _ _ H) as [t Ht].
+  exists t. exact Ht.
+Qed.

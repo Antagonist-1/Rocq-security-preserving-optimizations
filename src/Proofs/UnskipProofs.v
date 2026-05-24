@@ -113,7 +113,7 @@ Proof.
     eapply eval_trace_unopt_match with (ctx_opt := ($0 $+ (x1, a1) $+ (x2, a2), trace_of ctx_opt)) in Heval; auto.
     destruct Heval as [ctx_opt_body_final [Hstep_body Hmatch_body_final]].
     unfold match_ctx in Hmatch_body_final; destruct Hmatch_body_final as [Hval_body Htrace_body].
-    rewrite Hval_body in H2eval_.
+    rewrite Hval_body in *.
     eexists; split.
     + eapply EvalTraceAssignCall; eauto.
     + unfold match_ctx in *; split; simpl; auto.
@@ -778,8 +778,7 @@ Proof.
 
   - (* While *)
     inversion Hsrc1; inversion Hsrc2; subst;
-    inversion Hopt1; inversion Hopt2; subst; eauto;
-    try solve_branch_contra H8 H7.
+    inversion Hopt1; inversion Hopt2; subst; eauto.
     all: admit.
 Admitted.
 
