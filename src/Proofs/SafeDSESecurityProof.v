@@ -12,22 +12,10 @@ Require Import Proofs.UnsafeDSEProofs.
 Require Import Proofs.SafeDSEAnalysisProofs.
 Require Import Proofs.SecurityProofs.
 
-Create HintDb dse_db.
-Hint Constructors eval eval_trace eval_sec : dse_db.
 
 
 (* Helper tactics *)
 
-Ltac destruct_agree H :=
-  match type of H with
-  | agree_on (_ [∪] _) _ _ =>
-      apply agree_on_union in H;
-      let Hl := fresh H in
-      let Hr := fresh H in
-      destruct H as [Hl Hr];
-      destruct_agree Hl; destruct_agree Hr
-  | _ => idtac
-  end.
 
 Ltac destruct_agree_while H :=
   match type of H with
@@ -44,9 +32,6 @@ Ltac solve_interp_from_agree Heval Hagree :=
   apply interp_arith_agree;
   eapply agree_on_subset; [| apply agree_on_sym; exact Hagree];
   VarSetDecide.fsetdec.
-
-Ltac finish_trace_same H :=
-  eexists; split; [exact H | constructor; [reflexivity | apply agree_on_refl]].
 
 Ltac finish_sec_same H :=
   eexists; split; [exact H | constructor; [intro y; reflexivity | reflexivity | apply agree_on_refl]].
@@ -142,19 +127,6 @@ Proof.
   - simpl. eapply agree_on_subset; [| exact Hagree].
     apply while_fixpoint_contains_out.
 Qed.
-
-Lemma sec_coincide_proj_trace : forall out ctx1 ctx2,
-  sec_coincide out ctx1 ctx2 ->
-  trace_coincide out
-    (sec_val_of ctx1, sec_trace_of ctx1)
-    (sec_val_of ctx2, sec_trace_of ctx2).
-Proof.
-  intros out ctx1 ctx2 Hcoin.
-  destruct Hcoin as [_ Htrace Hagree].
-  constructor; exact Htrace || exact Hagree.
-Qed.
-
-
 
 
 Lemma sec_env_sub_public : forall se_actual se_static x,
@@ -829,30 +801,6 @@ Proof.
 Qed.
 
 (** * 4. Trace Preservation (eval_trace / is_safe_pgm) *)
-
-Lemma eval_trace_liveness_coincidence : forall phi c out v1 v2 t v1' t1,
-  eval_trace phi (v1, t) c (v1', t1) ->
-  agree_on (liveness c out) v1 v2 ->
-  exists v2', eval_trace phi (v2, t) c (v2', t1) /\ agree_on out v1' v2'.
-Proof.
-  intros phi c out v1 v2 t v1' t1 Heval Hagree.
-  destruct (Eval_lift_sec phi v1 t c v1' t1 Heval VarSet.empty)
-    as [se1' Heval_sec].
-  pose proof (eval_sec_liveness_coincidence phi c out
-    (v1, VarSet.empty, t) (v2, VarSet.empty, t) (v1', se1', t1)
-    Heval_sec (fun x => eq_refl _) eq_refl Hagree) as Hcoin.
-  destruct Hcoin as [ctx2_out [Heval2_sec Hcoincide]].
-  destruct Hcoincide as [_ Htrace Hagree_out].
-  pose proof (Eval_proj_sec phi (v2, VarSet.empty, t) c ctx2_out Heval2_sec) as Heval2_trace.
-  exists (sec_val_of ctx2_out).
-  rewrite <- Htrace in Heval2_trace.
-  split; [exact Heval2_trace | exact Hagree_out].
-Qed.
-
-(* opt_dse doesn't modify the trace. well...
-   the trace is not modified. but the final valuation is.
-   so I need to be more precise:
- *)
 
 (* eval_trace only updated var that occur in the command. *) 
 (* Variables not mentioned in the optimized command are unchanged,
