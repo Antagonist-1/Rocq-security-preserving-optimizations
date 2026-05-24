@@ -3,6 +3,7 @@ Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.Unskip.
 From Stdlib Require Import List.
+From Stdlib Require Import Lia.
 Import ListNotations.
 
 Create HintDb unskip_db.
@@ -647,6 +648,124 @@ Proof.
     rewrite Hstart. reflexivity.
 Qed.
 
+Lemma eval_trace_sequence_inv : forall phi ctx c1 c2 ctx_out,
+  eval_trace phi ctx (Sequence c1 c2) ctx_out ->
+  exists ctx_mid,
+    eval_trace phi ctx c1 ctx_mid /\
+    eval_trace phi ctx_mid c2 ctx_out.
+Proof.
+  intros phi ctx c1 c2 ctx_out Heval.
+  inversion Heval; subst; eauto.
+Qed.
+
+Lemma eval_trace_rebase : forall phi ctx c ctx_out,
+  eval_trace phi ctx c ctx_out ->
+  forall t,
+    exists suffix,
+      trace_of ctx_out = trace_of ctx ++ suffix /\
+      eval_trace phi (val_of ctx, t) c (val_of ctx_out, t ++ suffix).
+Proof.
+  intros phi ctx c ctx_out Heval.
+  induction Heval; intros t0; simpl in *.
+  - exists []. split; [rewrite app_nil_r; reflexivity |].
+    rewrite app_nil_r. apply EvalTraceSkip.
+  - exists []. split; [rewrite app_nil_r; reflexivity |].
+    rewrite app_nil_r.
+    change (eval_trace phi (val_of ctx, t0) (Assign x e)
+      ((val_of ctx, t0) v$+ (x, a))).
+    eapply EvalTraceAssign. exact H.
+  - exists []. split; [rewrite app_nil_r; reflexivity |].
+    rewrite app_nil_r.
+    change (eval_trace phi (val_of ctx, t0) (Cmov x cond e1 e2)
+      ((val_of ctx, t0) v$+ (x, a1))).
+    eapply EvalTraceCmovTrue; eauto.
+  - exists []. split; [rewrite app_nil_r; reflexivity |].
+    rewrite app_nil_r.
+    change (eval_trace phi (val_of ctx, t0) (Cmov x cond e1 e2)
+      ((val_of ctx, t0) v$+ (x, a2))).
+    eapply EvalTraceCmovFalse; eauto.
+  - destruct (IHHeval t0) as [suffix [Hsuffix Hbody]].
+    exists suffix. split; [exact Hsuffix |].
+    eapply EvalTraceAssignCall with (ctx := (val_of ctx, t0))
+      (ctx' := (val_of ctx', t0 ++ suffix));
+      simpl; eauto.
+  - destruct (IHHeval1 t0) as [suffix1 [Hsuffix1 Hstep1]].
+    destruct (IHHeval2 (t0 ++ suffix1)) as [suffix2 [Hsuffix2 Hstep2]].
+    exists (suffix1 ++ suffix2). split.
+    + rewrite Hsuffix2, Hsuffix1, app_assoc. reflexivity.
+    + rewrite app_assoc. eapply EvalTraceSequence; eauto.
+  - destruct (IHHeval (t0 ++ [Branch true])) as [suffix [Hsuffix Hstep]].
+    exists ([Branch true] ++ suffix). split.
+    + rewrite Hsuffix. rewrite <- app_assoc. reflexivity.
+    + eapply EvalTraceIfTrue; eauto.
+      replace (t0 ++ ([Branch true] ++ suffix))
+        with ((t0 ++ [Branch true]) ++ suffix)
+        by (rewrite app_assoc; reflexivity).
+      exact Hstep.
+  - destruct (IHHeval (t0 ++ [Branch false])) as [suffix [Hsuffix Hstep]].
+    exists ([Branch false] ++ suffix). split.
+    + rewrite Hsuffix. rewrite <- app_assoc. reflexivity.
+    + eapply EvalTraceIfFalse; eauto.
+      replace (t0 ++ ([Branch false] ++ suffix))
+        with ((t0 ++ [Branch false]) ++ suffix)
+        by (rewrite app_assoc; reflexivity).
+      exact Hstep.
+  - destruct (IHHeval1 (t0 ++ [Branch true])) as [suffix1 [Hsuffix1 Hstep1]].
+    destruct (IHHeval2 ((t0 ++ [Branch true]) ++ suffix1)) as [suffix2 [Hsuffix2 Hstep2]].
+    exists ([Branch true] ++ suffix1 ++ suffix2). split.
+    + rewrite Hsuffix2, Hsuffix1.
+      do 2 rewrite <- app_assoc. reflexivity.
+    + replace (t0 ++ (([Branch true] ++ suffix1) ++ suffix2))
+        with (((t0 ++ [Branch true]) ++ suffix1) ++ suffix2)
+        by (do 2 rewrite app_assoc; reflexivity).
+      eapply EvalTraceWhileTrue with
+        (ctx' := (val_of ctx', (t0 ++ [Branch true]) ++ suffix1))
+        (c := c).
+      * exact H.
+      * exact H0.
+      * exact Hstep1.
+      * replace (t0 ++ [Branch true] ++ suffix1 ++ suffix2)
+          with (((t0 ++ [Branch true]) ++ suffix1) ++ suffix2)
+          by (repeat rewrite app_assoc; reflexivity).
+        exact Hstep2.
+  - exists [Branch false]. split; [reflexivity |].
+    eapply EvalTraceWhileFalse. exact H.
+Qed.
+
+Lemma eval_trace_equal_rebased : forall phi c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2
+    ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out,
+  eval_trace phi ctx_src1 c ctx_src1_out ->
+  eval_trace phi ctx_src2 c ctx_src2_out ->
+  eval_trace phi ctx_opt1 c ctx_opt1_out ->
+  eval_trace phi ctx_opt2 c ctx_opt2_out ->
+  val_of ctx_src1 = val_of ctx_opt1 ->
+  val_of ctx_src2 = val_of ctx_opt2 ->
+  trace_of ctx_src1 = trace_of ctx_src2 ->
+  trace_of ctx_opt1 = trace_of ctx_opt2 ->
+  trace_of ctx_src1_out = trace_of ctx_src2_out ->
+  trace_of ctx_opt1_out = trace_of ctx_opt2_out.
+Proof.
+  intros phi c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2
+    ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out
+    Hsrc1 Hsrc2 Hopt1 Hopt2 Hval1 Hval2 Hstart_src Hstart_opt Hout_src.
+  destruct (eval_trace_rebase _ _ _ _ Hsrc1 (trace_of ctx_opt1))
+    as [suffix1 [Hsuffix1 Hrebase1]].
+  destruct (eval_trace_rebase _ _ _ _ Hsrc2 (trace_of ctx_opt2))
+    as [suffix2 [Hsuffix2 Hrebase2]].
+  destruct ctx_src1 as [v_src1 t_src1], ctx_src2 as [v_src2 t_src2].
+  destruct ctx_opt1 as [v_opt1 t_opt1], ctx_opt2 as [v_opt2 t_opt2].
+  simpl in *; subst v_opt1 v_opt2.
+  assert (Heq1 : ctx_opt1_out = (val_of ctx_src1_out, t_opt1 ++ suffix1)).
+  { eapply eval_trace_deterministic; eauto. }
+  assert (Heq2 : ctx_opt2_out = (val_of ctx_src2_out, t_opt2 ++ suffix2)).
+  { eapply eval_trace_deterministic; eauto. }
+  rewrite Heq1, Heq2. simpl.
+  rewrite Hsuffix1, Hsuffix2 in Hout_src.
+  rewrite Hstart_src in Hout_src.
+  apply app_inv_head in Hout_src.
+  rewrite Hstart_opt, Hout_src. reflexivity.
+Qed.
+
 Ltac solve_unop :=
   match goal with
   | Hsrc1: eval_trace ?phi (?v1, ?t) ?c (?vf1, ?tr1),
@@ -670,60 +789,297 @@ Lemma opt_traces_equal_gen : forall phi c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2 ct
   trace_of ctx_src1_out = trace_of ctx_src2_out ->
   trace_of ctx_opt1_out = trace_of ctx_opt2_out.
 Proof.
-  intros phi c. revert phi.
-  induction c; intros phi ctx_src1 ctx_src2 ctx_opt1 ctx_opt2 ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out 
-    Hsrc1 Hsrc2 Hopt1 Hopt2 Hmatch1 Hmatch2 Hstart_src Hstart_opt Hout_src;
-  simpl in Hopt1, Hopt2.
-  - (* Skip *) inversion Hopt1; inversion Hopt2; subst; assumption.
-  - (* Assign *) inversion Hopt1; inversion Hopt2; subst; assumption.
-  - (* AssignCall *) admit.
-  - (* Cmov *) inversion Hopt1; inversion Hopt2; subst; assumption.
+  intros phi c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2
+    ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out Hsrc1.
+  revert ctx_src2 ctx_opt1 ctx_opt2 ctx_src2_out ctx_opt1_out ctx_opt2_out.
+  induction Hsrc1; intros ctx_src2 ctx_opt1 ctx_opt2
+    ctx_src2_out ctx_opt1_out ctx_opt2_out
+    Hsrc2 Hopt1 Hopt2 Hmatch1 Hmatch2 Hstart_src Hstart_opt Hout_src;
+    simpl in Hopt1, Hopt2.
+  - (* Skip *)
+    inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt.
+  - (* Assign *)
+    inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt.
+  - (* CmovTrue *)
+    inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt.
+  - (* CmovFalse *)
+    inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt.
+  - (* AssignCall *)
+    assert (Hsrc1_call :
+      eval_trace phi ctx (AssignCall x f e1 e2)
+        (val_of ctx $+ (x, a), trace_of ctx')).
+    { eapply EvalTraceAssignCall; eauto. }
+    unfold match_ctx in Hmatch1, Hmatch2.
+    destruct Hmatch1 as [Hval1 _], Hmatch2 as [Hval2 _].
+    eapply eval_trace_equal_rebased.
+    + exact Hsrc1_call.
+    + exact Hsrc2.
+    + exact Hopt1.
+    + exact Hopt2.
+    + exact Hval1.
+    + exact Hval2.
+    + exact Hstart_src.
+    + exact Hstart_opt.
+    + exact Hout_src.
   - (* Sequence *)
-    destruct (opt_unskip_cmd c1) eqn:Hc1; destruct (opt_unskip_cmd c2) eqn:Hc2;
-    match goal with
-    | H_c1 : opt_unskip_cmd c1 = Skip, H_c2 : opt_unskip_cmd c2 = Skip |- _ => 
-      (* Skip, Skip *) inversion Hopt1; inversion Hopt2; subst; assumption
-    | H_c1 : opt_unskip_cmd c1 = Skip |- _ => (* Skip, Not Skip *)
-      inversion Hsrc1; subst; clear Hsrc1;
-      inversion Hsrc2; subst; clear Hsrc2;
-      try (inversion Hopt1; inversion Hopt2; subst; simpl; assumption);
-      destruct (eval_trace_prefix _ _ _ _ H4) as [tail1 Htail1];
-      destruct (eval_trace_prefix _ _ _ _ H6) as [tail2 Htail2];
-      assert (Hsync_src : trace_of ctx1 = trace_of ctx0);
-      [ eapply eval_trace_sync; [exact H2 | exact H3 | exact Hstart_src | ];
-        rewrite Htail1, Htail2 in Hout_src; exact Hout_src | ];
-      edestruct opt_unskip_forward with (ctx_src := ctx_src1) (ctx_opt := ctx_opt1); [exact H2 | exact Hmatch1 | ];
-      intros ctx_opt1_fw [Hopt1_fw Hmatch1_mid];
-      edestruct opt_unskip_forward with (ctx_src := ctx_src2) (ctx_opt := ctx_opt2); [exact H3 | exact Hmatch2 | ];
-      intros ctx_opt2_fw [Hopt2_fw Hmatch2_mid];
-      assert (Hmid1 : ctx_opt1_fw = ctx_opt1) by (inversion Hopt1_fw; reflexivity); subst ctx_opt1_fw;
-      assert (Hmid2 : ctx_opt2_fw = ctx_opt2) by (inversion Hopt2_fw; reflexivity); subst ctx_opt2_fw;
-      eapply IHc2; eauto
-
-    | H_c2 : opt_unskip_cmd c2 = Skip |- _ => (* Not Skip, Skip *)
-      inversion Hsrc1; subst; clear Hsrc1;
-      inversion Hsrc2; subst; clear Hsrc2;
-      try (inversion Hopt1; inversion Hopt2; subst; simpl; assumption);
-      destruct (eval_trace_prefix _ _ _ _ H4) as [tail1 Htail1];
-      destruct (eval_trace_prefix _ _ _ _ H6) as [tail2 Htail2];
-      assert (Hsync_src : trace_of ctx1 = trace_of ctx0);
-      [ eapply eval_trace_sync; [exact H2 | exact H3 | exact Hstart_src | ];
-        rewrite Htail1, Htail2 in Hout_src; exact Hout_src | ];
-      edestruct opt_unskip_forward with (ctx_src := ctx_src1) (ctx_opt := ctx_opt1); [exact H2 | exact Hmatch1 | ];
-      intros ctx_opt1_fw [Hopt1_fw Hmatch1_mid];
-      edestruct opt_unskip_forward with (ctx_src := ctx_src2) (ctx_opt := ctx_opt2); [exact H3 | exact Hmatch2 | ];
-      intros ctx_opt2_fw [Hopt2_fw Hmatch2_mid];
-      assert (Hmid1 : ctx_opt1_fw = ctx_opt1) by (inversion Hopt1_fw; reflexivity); subst ctx_opt1_fw;
-      assert (Hmid2 : ctx_opt2_fw = ctx_opt2) by (inversion Hopt2_fw; reflexivity); subst ctx_opt2_fw;
-      eapply IHc2; eauto
-    | _ => (* Not Skip, Not Skip *)
-        admit
+    destruct (eval_trace_sequence_inv _ _ _ _ _ Hsrc2)
+      as [ctx2_mid [Hsrc2_1 Hsrc2_2]].
+    destruct (eval_trace_prefix _ _ _ _ Hsrc1_2) as [tail1 Htail1].
+    destruct (eval_trace_prefix _ _ _ _ Hsrc2_2) as [tail2 Htail2].
+    assert (Hsrc_mid : trace_of ctx1 = trace_of ctx2_mid).
+    { eapply eval_trace_sync; [exact Hsrc1_1 | exact Hsrc2_1 | exact Hstart_src |].
+      rewrite Htail1, Htail2 in Hout_src. exact Hout_src. }
+    destruct (opt_unskip_cmd c1) eqn:Hc1;
+    destruct (opt_unskip_cmd c2) eqn:Hc2;
+    lazymatch type of Hc1 with
+    | _ = Skip =>
+      lazymatch type of Hc2 with
+      | _ = Skip =>
+        inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt
+      | _ =>
+        destruct (opt_unskip_forward phi c1 ctx ctx1 ctx_opt1 Hsrc1_1 Hmatch1)
+          as [ctx1_fw [Hopt1_fw Hmatch1_mid]];
+        destruct (opt_unskip_forward phi c1 ctx_src2 ctx2_mid ctx_opt2 Hsrc2_1 Hmatch2)
+          as [ctx2_fw [Hopt2_fw Hmatch2_mid]];
+        rewrite Hc1 in Hopt1_fw, Hopt2_fw;
+        inversion Hopt1_fw; subst ctx1_fw;
+        inversion Hopt2_fw; subst ctx2_fw;
+        eapply IHHsrc1_2;
+        [ exact Hsrc2_2
+        | exact Hopt1
+        | exact Hopt2
+        | exact Hmatch1_mid | exact Hmatch2_mid
+        | exact Hsrc_mid | exact Hstart_opt | exact Hout_src ]
+      end
+    | _ =>
+      lazymatch type of Hc2 with
+      | _ = Skip =>
+        eapply IHHsrc1_1;
+        [ exact Hsrc2_1
+        | exact Hopt1
+        | exact Hopt2
+        | exact Hmatch1 | exact Hmatch2
+        | exact Hstart_src | exact Hstart_opt | exact Hsrc_mid ]
+      | _ =>
+        destruct (eval_trace_sequence_inv _ _ _ _ _ Hopt1)
+          as [ctx1_opt_mid [Hopt1_1 Hopt1_2]];
+        destruct (eval_trace_sequence_inv _ _ _ _ _ Hopt2)
+          as [ctx2_opt_mid [Hopt2_1 Hopt2_2]];
+        assert (Hopt_mid : trace_of ctx1_opt_mid = trace_of ctx2_opt_mid);
+        [ eapply IHHsrc1_1;
+          [ exact Hsrc2_1
+          | exact Hopt1_1
+          | exact Hopt2_1
+          | exact Hmatch1 | exact Hmatch2
+          | exact Hstart_src | exact Hstart_opt | exact Hsrc_mid ] | ];
+        destruct (opt_unskip_forward phi c1 ctx ctx1 ctx_opt1 Hsrc1_1 Hmatch1)
+          as [ctx1_fw [Hopt1_fw Hmatch1_mid]];
+        destruct (opt_unskip_forward phi c1 ctx_src2 ctx2_mid ctx_opt2 Hsrc2_1 Hmatch2)
+          as [ctx2_fw [Hopt2_fw Hmatch2_mid]];
+        assert (Heq1 : ctx1_fw = ctx1_opt_mid);
+        [ eapply eval_trace_deterministic;
+          [rewrite Hc1 in Hopt1_fw; exact Hopt1_fw | exact Hopt1_1] | ];
+        assert (Heq2 : ctx2_fw = ctx2_opt_mid);
+        [ eapply eval_trace_deterministic;
+          [rewrite Hc1 in Hopt2_fw; exact Hopt2_fw | exact Hopt2_1] | ];
+        subst ctx1_fw; subst ctx2_fw;
+        eapply IHHsrc1_2;
+        [ exact Hsrc2_2
+        | exact Hopt1_2
+        | exact Hopt2_2
+        | exact Hmatch1_mid | exact Hmatch2_mid
+        | exact Hsrc_mid | exact Hopt_mid | exact Hout_src ]
+      end
     end.
-
-  - (* If *) admit.
-    
-  - (* While *) admit.
-Admitted.
+  - (* IfTrue *)
+    assert (Hmatch1_branch :
+      match_ctx (ctx t++ Branch true) (ctx_opt1 t++ Branch true)).
+    { unfold match_ctx in *; destruct Hmatch1 as [Hval Htrace].
+      split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]. }
+    assert (Hmatch2_branch :
+      match_ctx (ctx_src2 t++ Branch true) (ctx_opt2 t++ Branch true)).
+    { unfold match_ctx in *; destruct Hmatch2 as [Hval Htrace].
+      split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]. }
+    assert (Hstart_src_branch :
+      trace_of (ctx t++ Branch true) = trace_of (ctx_src2 t++ Branch true)).
+    { simpl. rewrite Hstart_src. reflexivity. }
+    assert (Hstart_opt_branch :
+      trace_of (ctx_opt1 t++ Branch true) =
+      trace_of (ctx_opt2 t++ Branch true)).
+    { simpl. rewrite Hstart_opt. reflexivity. }
+    dependent destruction Hsrc2.
+    + destruct (opt_unskip_cmd thn) eqn:Hthn;
+      destruct (opt_unskip_cmd els) eqn:Hels;
+      lazymatch type of Hthn with
+      | _ = Skip =>
+        lazymatch type of Hels with
+        | _ = Skip =>
+          inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt
+        | _ =>
+          unfold match_ctx in Hmatch1, Hmatch2;
+          destruct Hmatch1 as [Hval1 _], Hmatch2 as [Hval2 _];
+          inversion Hopt1; subst; try (rewrite Hval1 in *; lia);
+          inversion Hopt2; subst; try (rewrite Hval2 in *; lia);
+          eapply IHHsrc1; eauto
+        end
+      | _ =>
+        unfold match_ctx in Hmatch1, Hmatch2;
+        destruct Hmatch1 as [Hval1 _], Hmatch2 as [Hval2 _];
+        inversion Hopt1; subst; try (rewrite Hval1 in *; lia);
+        inversion Hopt2; subst; try (rewrite Hval2 in *; lia);
+        eapply IHHsrc1; eauto
+      end.
+    + match goal with
+      | Htrue : eval_trace phi (ctx t++ Branch true) thn _,
+        Hfalse : eval_trace phi (_ t++ Branch false) els _ |- _ =>
+          destruct (eval_trace_prefix _ _ _ _ Htrue) as [tail1 Htail1];
+          destruct (eval_trace_prefix _ _ _ _ Hfalse) as [tail2 Htail2];
+          simpl in *; rewrite Htail1, Htail2 in Hout_src;
+          rewrite Hstart_src in Hout_src;
+          repeat rewrite <- app_assoc in Hout_src;
+          apply branch_contradiction in Hout_src; discriminate Hout_src
+      end.
+  - (* IfFalse *)
+    assert (Hmatch1_branch :
+      match_ctx (ctx t++ Branch false) (ctx_opt1 t++ Branch false)).
+    { unfold match_ctx in *; destruct Hmatch1 as [Hval Htrace].
+      split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]. }
+    assert (Hmatch2_branch :
+      match_ctx (ctx_src2 t++ Branch false) (ctx_opt2 t++ Branch false)).
+    { unfold match_ctx in *; destruct Hmatch2 as [Hval Htrace].
+      split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]. }
+    assert (Hstart_src_branch :
+      trace_of (ctx t++ Branch false) = trace_of (ctx_src2 t++ Branch false)).
+    { simpl. rewrite Hstart_src. reflexivity. }
+    assert (Hstart_opt_branch :
+      trace_of (ctx_opt1 t++ Branch false) =
+      trace_of (ctx_opt2 t++ Branch false)).
+    { simpl. rewrite Hstart_opt. reflexivity. }
+    unfold match_ctx in Hmatch1, Hmatch2.
+    destruct Hmatch1 as [Hval1 Htrace1], Hmatch2 as [Hval2 Htrace2].
+    assert (Hsrc2_false :
+      interp_arith e (val_of ctx_src2) = 0 /\
+      eval_trace phi (ctx_src2 t++ Branch false) els ctx_src2_out).
+    { inversion Hsrc2; subst.
+      - match goal with
+        | Hfalse : eval_trace phi (ctx t++ Branch false) els _,
+          Htrue : eval_trace phi (_ t++ Branch true) thn _ |- _ =>
+            destruct (eval_trace_prefix _ _ _ _ Hfalse) as [tail1 Htail1];
+            destruct (eval_trace_prefix _ _ _ _ Htrue) as [tail2 Htail2];
+            simpl in *; rewrite Htail1, Htail2 in Hout_src;
+            rewrite Hstart_src in Hout_src;
+            repeat rewrite <- app_assoc in Hout_src;
+            apply branch_contradiction in Hout_src; discriminate Hout_src
+        end.
+      - split; eauto. }
+    destruct Hsrc2_false as [Hcond2 Hsrc2_branch].
+    assert (Hcond_opt1 : interp_arith e (val_of ctx_opt1) = 0).
+    { rewrite <- Hval1. exact H. }
+    assert (Hcond_opt2 : interp_arith e (val_of ctx_opt2) = 0).
+    { rewrite <- Hval2. exact Hcond2. }
+    destruct (opt_unskip_cmd thn) eqn:Hthn;
+    destruct (opt_unskip_cmd els) eqn:Hels;
+    lazymatch type of Hthn with
+    | _ = Skip =>
+      lazymatch type of Hels with
+      | _ = Skip =>
+        inversion Hopt1; inversion Hopt2; subst; exact Hstart_opt
+      | _ =>
+        eapply IHHsrc1;
+        [ exact Hsrc2_branch
+        | inversion Hopt1; subst; try lia; eauto
+        | inversion Hopt2; subst; try lia; eauto
+        | exact Hmatch1_branch | exact Hmatch2_branch
+        | exact Hstart_src_branch | exact Hstart_opt_branch | exact Hout_src ]
+      end
+    | _ =>
+      eapply IHHsrc1;
+      [ exact Hsrc2_branch
+      | inversion Hopt1; subst; try lia; eauto
+      | inversion Hopt2; subst; try lia; eauto
+      | exact Hmatch1_branch | exact Hmatch2_branch
+      | exact Hstart_src_branch | exact Hstart_opt_branch | exact Hout_src ]
+    end.
+    all: inversion Hopt2; subst; try lia;
+      match goal with
+      | Hbranch : eval_trace _ (_ t++ Branch false) _ _ |- _ => exact Hbranch
+      end.
+  - (* WhileTrue *)
+    assert (Hmatch1_branch :
+      match_ctx (ctx t++ Branch true) (ctx_opt1 t++ Branch true)).
+    { unfold match_ctx in *; destruct Hmatch1 as [Hval Htrace].
+      split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]. }
+    assert (Hmatch2_branch :
+      match_ctx (ctx_src2 t++ Branch true) (ctx_opt2 t++ Branch true)).
+    { unfold match_ctx in *; destruct Hmatch2 as [Hval Htrace].
+      split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]. }
+    assert (Hstart_src_branch :
+      trace_of (ctx t++ Branch true) = trace_of (ctx_src2 t++ Branch true)).
+    { simpl. rewrite Hstart_src. reflexivity. }
+    assert (Hstart_opt_branch :
+      trace_of (ctx_opt1 t++ Branch true) =
+      trace_of (ctx_opt2 t++ Branch true)).
+    { simpl. rewrite Hstart_opt. reflexivity. }
+    inversion Hsrc2; subst; clear Hsrc2.
+    + (* Hsrc2 is WhileTrue *)
+      inversion Hopt1; subst; clear Hopt1.
+      * (* Hopt1 is WhileTrue *)
+        inversion Hopt2; subst; clear Hopt2.
+        -- (* Hopt2 is WhileTrue *)
+           match goal with
+           | Hsrc2_1 : eval_trace phi (?ctx_src2 t++ Branch true) body ?ctx2_mid,
+             Hsrc2_2 : eval_trace phi ?ctx2_mid (While e body) ctx_src2_out,
+             Hopt1_1 : eval_trace phi (?ctx_opt1 t++ Branch true) (opt_unskip_cmd body) ?ctxopt1_mid,
+             Hopt1_2 : eval_trace phi ?ctxopt1_mid (While e (opt_unskip_cmd body)) ctx_opt1_out,
+             Hopt2_1 : eval_trace phi (?ctx_opt2 t++ Branch true) (opt_unskip_cmd body) ?ctxopt2_mid,
+             Hopt2_2 : eval_trace phi ?ctxopt2_mid (While e (opt_unskip_cmd body)) ctx_opt2_out |- _ =>
+               destruct (eval_trace_prefix _ _ _ _ Hsrc1_2) as [tail1 Htail1];
+               destruct (eval_trace_prefix _ _ _ _ Hsrc2_2) as [tail2 Htail2];
+               assert (Hsrc_mid : trace_of ctx' = trace_of ctx2_mid);
+               [ eapply eval_trace_sync; [exact Hsrc1_1 | exact Hsrc2_1 | exact Hstart_src_branch | ];
+                 rewrite Htail1, Htail2 in Hout_src; exact Hout_src | ];
+               destruct (opt_unskip_forward phi body (ctx t++ Branch true) ctx' (ctx_opt1 t++ Branch true) Hsrc1_1 Hmatch1_branch)
+                 as [ctxopt1_mid_fw [Hopt1_fw Hmatch1_mid]];
+               destruct (opt_unskip_forward phi body (ctx_src2 t++ Branch true) ctx2_mid (ctx_opt2 t++ Branch true) Hsrc2_1 Hmatch2_branch)
+                 as [ctxopt2_mid_fw [Hopt2_fw Hmatch2_mid]];
+               assert (Heq1 : ctxopt1_mid_fw = ctxopt1_mid) by (eapply eval_trace_deterministic; [exact Hopt1_fw | exact Hopt1_1]);
+               assert (Heq2 : ctxopt2_mid_fw = ctxopt2_mid) by (eapply eval_trace_deterministic; [exact Hopt2_fw | exact Hopt2_1]);
+               subst ctxopt1_mid_fw ctxopt2_mid_fw;
+               assert (Hopt_mid : trace_of ctxopt1_mid = trace_of ctxopt2_mid);
+               [ eapply IHHsrc1_1; [exact Hsrc2_1 | exact Hopt1_1 | exact Hopt2_1 | exact Hmatch1_branch | exact Hmatch2_branch | exact Hstart_src_branch | exact Hstart_opt_branch | exact Hsrc_mid] | ];
+               eapply IHHsrc1_2; [exact Hsrc2_2 | exact Hopt1_2 | exact Hopt2_2 | exact Hmatch1_mid | exact Hmatch2_mid | exact Hsrc_mid | exact Hopt_mid | exact Hout_src]
+           end.
+        -- (* Hopt2 is WhileFalse *)
+           unfold match_ctx in Hmatch2; destruct Hmatch2 as [Hval2 _]; simpl in Hval2; rewrite <- Hval2 in *; lia.
+      * (* Hopt1 is WhileFalse *)
+        unfold match_ctx in Hmatch1; destruct Hmatch1 as [Hval1 _]; simpl in Hval1; rewrite <- Hval1 in *; lia.
+    + (* Hsrc2 is WhileFalse *)
+      destruct (eval_trace_prefix _ _ _ _ Hsrc1_1) as [diff_body Hdiff_body].
+      destruct (eval_trace_prefix _ _ _ _ Hsrc1_2) as [diff_loop Hdiff_loop].
+      simpl in *. rewrite Hdiff_loop, Hdiff_body in Hout_src. rewrite Hstart_src in Hout_src.
+      repeat rewrite <- app_assoc in Hout_src. apply branch_contradiction in Hout_src. discriminate Hout_src.
+  - (* WhileFalse *)
+    inversion Hsrc2; subst; clear Hsrc2.
+    + (* Hsrc2 is WhileTrue *)
+      match goal with
+      | Hsrc2_1 : eval_trace phi (?ctx_src2 t++ Branch true) body ?ctx2_mid,
+        Hsrc2_2 : eval_trace phi ?ctx2_mid (While e body) ctx_src2_out |- _ =>
+          destruct (eval_trace_prefix _ _ _ _ Hsrc2_1) as [diff_body Hdiff_body];
+          destruct (eval_trace_prefix _ _ _ _ Hsrc2_2) as [diff_loop Hdiff_loop];
+          simpl in *; rewrite Hdiff_loop, Hdiff_body in Hout_src; rewrite <- Hstart_src in Hout_src;
+          repeat rewrite <- app_assoc in Hout_src; symmetry in Hout_src; apply branch_contradiction in Hout_src; discriminate Hout_src
+      end.
+    + (* Hsrc2 is WhileFalse *)
+      inversion Hopt1; subst; clear Hopt1.
+      * (* Hopt1 is WhileTrue *)
+        unfold match_ctx in Hmatch1; destruct Hmatch1 as [Hval1 _]; simpl in Hval1; rewrite <- Hval1 in *; lia.
+      * (* Hopt1 is WhileFalse *)
+        inversion Hopt2; subst; clear Hopt2.
+        -- (* Hopt2 is WhileTrue *)
+           unfold match_ctx in Hmatch2; destruct Hmatch2 as [Hval2 _]; simpl in Hval2; rewrite <- Hval2 in *; lia.
+        -- (* Hopt2 is WhileFalse *)
+           simpl in *. rewrite Hstart_opt. reflexivity.
+Qed.
 
 Lemma opt_traces_equal : forall phi c v1 v2 t_in final_v1 final_v2 trace1 trace2 src_final_v1 src_final_v2 src_trace,
   eval_trace phi (v1, t_in) c (src_final_v1, src_trace) ->
@@ -732,55 +1088,21 @@ Lemma opt_traces_equal : forall phi c v1 v2 t_in final_v1 final_v2 trace1 trace2
   eval_trace phi (v2, t_in) (opt_unskip_cmd c) (final_v2, trace2) ->
   trace1 = trace2.
 Proof.
-  intros phi c. revert phi.
-  induction c; intros phi v1 v2 t_in final_v1 final_v2 trace1 trace2 src_final_v1 src_final_v2 src_trace Hsrc1 Hsrc2 Hopt1 Hopt2;
-  simpl in Hopt1, Hopt2.
-
-  - (* Skip *) solve_unop.
-  - (* Assign *) solve_unop.
-  - (* AssignCall *) solve_unop.
-  - (* Cmov *) solve_unop.
-  - (* Sequence *)
-    (* 1. Expose the match statements in the optimized executions *)
-    simpl in Hopt1, Hopt2.
-    
-    (* 2. Generate the 49 combinations. Coq will auto-reduce Hopt1 and Hopt2 here! *)
-    destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    
-    (* 3. Filter the 49 cases logically using the destructed equations *)
-    match goal with
-    | H_c1 : opt_unskip_cmd c1 = Skip, H_c2 : opt_unskip_cmd c2 = Skip |- _ => 
-        (* Skip, Skip *)
-        inversion Hopt1; inversion Hopt2; subst; reflexivity
-    | H_c1 : opt_unskip_cmd c1 = Skip |- _ => 
-        (* c1 became Skip, c2 is kept *)
-        inversion Hsrc1; subst; clear Hsrc1;
-        inversion Hsrc2; subst; clear Hsrc2;
-        try (inversion Hopt1; inversion Hopt2; subst; reflexivity)
-    | H_c2 : opt_unskip_cmd c2 = Skip |- _ => 
-        (* c1 is kept, c2 became Skip *)
-        inversion Hsrc1; subst; clear Hsrc1;
-        inversion Hsrc2; subst; clear Hsrc2;
-        try (inversion Hopt1; inversion Hopt2; subst; reflexivity)
-    | _ => 
-        (* Neither became Skip *)
-        inversion Hsrc1; inversion Hsrc2; subst;
-        inversion Hopt1; inversion Hopt2; subst;
-        try (inversion Hopt1; inversion Hopt2; subst; reflexivity)
-    end.
-    all: admit.
-
-  - (* If *)
-    destruct (opt_unskip_cmd c1) eqn:Hc1; destruct (opt_unskip_cmd c2) eqn:Hc2;
-    try (inversion Hopt1; inversion Hopt2; subst; reflexivity).
-    all: admit.
-
-  - (* While *)
-    inversion Hsrc1; inversion Hsrc2; subst;
-    inversion Hopt1; inversion Hopt2; subst; eauto.
-    all: admit.
-Admitted.
+  intros phi c v1 v2 t_in final_v1 final_v2 trace1 trace2 src_final_v1 src_final_v2 src_trace
+    Hsrc1 Hsrc2 Hopt1 Hopt2.
+  pose proof (opt_traces_equal_gen phi c 
+    (v1, t_in) (v2, t_in) 
+    (v1, t_in) (v2, t_in) 
+    (src_final_v1, src_trace) (src_final_v2, src_trace) 
+    (final_v1, trace1) (final_v2, trace2) 
+    Hsrc1 Hsrc2 Hopt1 Hopt2) as Hgen.
+  apply Hgen; clear Hgen.
+  - unfold match_ctx. split; simpl; [reflexivity | apply trace_subseq_refl].
+  - unfold match_ctx. split; simpl; [reflexivity | apply trace_subseq_refl].
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+Qed.
 
 (** ** Main theorem of non-inference preservation *)
 
