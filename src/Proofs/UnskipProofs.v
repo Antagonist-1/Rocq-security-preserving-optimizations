@@ -226,7 +226,30 @@ Lemma opt_unskip_backward_while : forall phi e body ctx_opt ctx_opt_final ctx_sr
   match_ctx ctx_src ctx_opt ->
   exists ctx_src_final, eval_trace phi ctx_src (While e body) ctx_src_final /\ match_ctx ctx_src_final ctx_opt_final.
 Proof.
-Admitted.
+  intros phi e body ctx_opt ctx_opt_final ctx_src Hopt Hbody_ih Hmatch.
+  revert ctx_src Hmatch.
+  remember (While e (opt_unskip_cmd body)) as loop_cmd.
+  induction Hopt; intros ctx_src Hmatch; try discriminate.
+  - (* EvalTraceWhileTrue *)
+    inversion Heqloop_cmd; subst; clear Heqloop_cmd.
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    assert (Hmatch_branch : match_ctx (ctx_src t++ Branch true) (ctx t++ Branch true))
+      by (split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]).
+    edestruct Hbody_ih as [ctx_src_mid [Hstep_body Hmatch_mid]]; [exact Hopt1 | exact Hmatch_branch |].
+    edestruct IHHopt2 as [ctx_src_final [Hstep_loop Hmatch_final]]; [reflexivity | exact Hmatch_mid |].
+    exists ctx_src_final; split.
+    + eapply EvalTraceWhileTrue with (c := interp_arith e (val_of ctx)); eauto.
+      rewrite Hval. reflexivity.
+    + exact Hmatch_final.
+  - (* EvalTraceWhileFalse *)
+    inversion Heqloop_cmd; subst; clear Heqloop_cmd.
+    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
+    assert (Hmatch_branch : match_ctx (ctx_src t++ Branch false) (ctx t++ Branch false))
+      by (split; simpl; [exact Hval | apply trace_subseq_append_keep; exact Htrace]).
+    exists (ctx_src t++ Branch false); split.
+    + eapply EvalTraceWhileFalse. rewrite Hval. eassumption.
+    + exact Hmatch_branch.
+Qed.
 
 Lemma opt_unskip_skip_trace_complete : forall phi c ctx,
   opt_unskip_cmd c = Skip ->
