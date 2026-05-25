@@ -15,6 +15,18 @@ Definition agree_on_public (secrets : var_set) (v1 v2 : valuation) : Prop :=
 Definition agree_on_secret (se : sec_env) (v1 v2 : valuation) : Prop :=
   forall x, sec_lookup se x = Secret -> v1 $? x = v2 $? x.
 
+Lemma agree_on_secret_trans : forall se v1 v2 v3,
+  agree_on_secret se v1 v2 ->
+  agree_on_secret se v2 v3 ->
+  agree_on_secret se v1 v3.
+Proof.
+  unfold agree_on_secret.
+  intros se v1 v2 v3 Hagree12 Hagree23 x Hsecret.
+  rewrite (Hagree12 x Hsecret).
+  apply Hagree23.
+  exact Hsecret.
+Qed.
+
 (* Another way is to say that two valuations are low-equivalent, meaning they agree on all public variables *)
 Definition low_equiv := agree_on_public.
 
@@ -129,14 +141,63 @@ Definition opt_keeps_secrets_secret (opt : program -> sec_env -> program) : Prop
     agree_on_secret (sec_of sctx') (sec_val_of sctx') (sec_val_of sctx'').
 
 
+(* very weak soundness condition, ignoring soundness of the opti in terms of correct output values, this lemma is only here to produce the intermeidate sctx for the proof of composition . *) 
+Definition opt_eval_sec_sound (opt : program -> sec_env -> program) : Prop :=
+  forall phi sctx sctx' pgm,
+    eval_sec phi sctx (cmd_of pgm) sctx' ->
+    exists sctx_opt,
+      eval_sec phi sctx (cmd_of (opt pgm (sec_of sctx))) sctx_opt.
 
-    (*A safe optimization:
-      1. transform a safe program into another safe program
-      2. doesn't change the value or sec_level of secrets, compared to the source program.
-    *)
-  Definition is_safe_opt (phi: function_env) (opt: program -> sec_env -> program): Prop :=
-    (forall (p: program) (secrets: sec_env) ,
-      is_safe_pgm phi p secrets -> is_safe_pgm phi (opt p secrets) secrets) /\
-      opt_keeps_secrets_secret opt.
+Definition compose_opt
+    (opt2 opt1 : program -> sec_env -> program)
+    (pgm : program)
+    (secrets : sec_env) : program :=
+  opt2 (opt1 pgm secrets) secrets.
 
 
+
+(*A safe optimization:
+  1. transform a safe program into another safe program
+  2. doesn't change the value or sec_level of secrets, compared to the source program.
+*)
+Definition is_safe_opt (phi: function_env) (opt: program -> sec_env -> program): Prop :=
+  (forall (p: program) (secrets: sec_env) ,
+    is_safe_pgm phi p secrets -> is_safe_pgm phi (opt p secrets) secrets) /\
+    opt_keeps_secrets_secret opt.
+
+Theorem is_safe_opt_compose : forall phi opt1 opt2,
+  is_safe_opt phi opt1 ->
+  is_safe_opt phi opt2 ->
+  opt_eval_sec_sound opt1 ->
+  is_safe_opt phi (compose_opt opt2 opt1).
+Proof.
+  intros phi opt1 opt2 [Hsafe_pgm1 Hkeep1] [Hsafe_pgm2 Hkeep2] Hsound1.
+  unfold is_safe_opt.
+  split.
+  - intros p secrets Hsafe.
+    apply Hsafe_pgm2.
+    apply Hsafe_pgm1.
+    exact Hsafe.
+  - unfold opt_keeps_secrets_secret, compose_opt in *.
+    intros sctx sctx' sctx'' pgm pgm'' phi' Hopt Hsrc Hopt_eval x.
+    destruct (Hsound1 phi' sctx sctx' pgm Hsrc) as [sctx_mid Hmid_eval].
+    pose proof (Hkeep1 sctx sctx' sctx_mid pgm (opt1 pgm (sec_of sctx)) phi'
+      eq_refl Hsrc Hmid_eval x) as Hmid.
+    pose proof (Hkeep2 sctx sctx_mid sctx'' (opt1 pgm (sec_of sctx)) pgm'' phi'
+      Hopt Hmid_eval Hopt_eval x) as Hfinal.
+    destruct Hmid as [Hsec_mid Hagree_mid].
+    destruct Hfinal as [Hsec_final Hagree_final].
+    split.
+    + rewrite Hsec_mid.
+      exact Hsec_final.
+    + eapply agree_on_secret_trans.
+      * exact Hagree_mid.
+      * unfold agree_on_secret.
+        intros y Hsecret.
+        apply Hagree_final.
+        pose proof (Hkeep1 sctx sctx' sctx_mid pgm (opt1 pgm (sec_of sctx)) phi'
+          eq_refl Hsrc Hmid_eval y) as Hy_mid.
+        destruct Hy_mid as [Hsec_mid_y _].
+        rewrite <- Hsec_mid_y.
+        exact Hsecret.
+Qed.

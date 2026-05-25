@@ -173,6 +173,20 @@ Proof.
   apply Hagree. exact Hy.
 Qed.
 
+Lemma agree_on_remove_add: forall out v1 v2 x a,
+  agree_on (VarSet.remove x out) v1 v2 ->
+  agree_on out (v1 $+ (x, a)) (v2 $+ (x, a)).
+Proof.
+  intros.
+  unfold agree_on.
+  intros.
+  destruct (x ==v x0).
+  - subst. repeat rewrite lookup_add_eq; reflexivity.
+  - eapply agree_on_update_both; [apply H|]. 
+    rewrite VarSetEqProps.remove_mem_2; eauto.
+Qed. 
+
+
 
 (* ================================================================= *)
 (* Step 2: interp_arith only depends on vars_in_expr                 *)
