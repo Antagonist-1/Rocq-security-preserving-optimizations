@@ -86,34 +86,3 @@ Proof.
 Qed.
 
 Example senv' := $0 $+ ("x", Secret).
-
-Example unsafe2 := single_out_pgm secret_overwritten_with_const "y".
-
-Example sctx: sec_context := ($0 $+ ("x", 123), senv_mk1 "x" Secret, nil).
-Example sctx': sec_context := ($0 $+ ("x", 123) $+ ("x", 0), senv_mk2 "x" "x" Secret Public, nil).
-Example sctx'' := sctx. (* secret untouched after opt dse!*)
-
-Theorem unsafeDSE_unsafe : forall phi,  ~ is_safe_opt phi (fun p _ => opt_dse p).
-Proof.
-  unfold is_safe_opt.
-  intros phi H.
-  destruct H.
-  clear H.
-  unfold opt_keeps_secrets_secret in H0.
-  specialize (H0 sctx sctx' sctx'' unsafe2 (single_out_pgm Skip "y") $0).
-  unfold unsafe2, secret_overwritten_with_const, opt_dse in H0.
-  simpl in H0.
-  assert (Hpre1 : eval_sec $0 sctx ("x" <- 0) sctx') by (constructor; reflexivity).
-  assert (Hpre2 : eval_sec $0 sctx Skip sctx'') by constructor.
-  specialize (H0 eq_refl Hpre1 Hpre2 "x").
-  (* Here both sides of H0 are wrong. x doesnt have the same level AND the same value *)
-  destruct H0.
-  (*it seems easier to prove the left side wrong*)
-  unfold sctx', sctx'' in H.
-  unfold sec_of in H. (* for some reason simpl needs an extra help*)
-  simpl in H.
-  unfold sec_lookup in H.
-  rewrite VarSetEqProps.remove_mem_1 in H.
-  rewrite VarSetEqProps.add_mem_1 in H.
-  discriminate.
-Qed.

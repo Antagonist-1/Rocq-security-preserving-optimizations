@@ -1,10 +1,10 @@
 Require Import Language.Main.
 Require Import Language.Optimizations.Safe.DSE.
 Require Import Language.Optimizations.Safe.Unskip.
-Require Import Proofs.DSE.Defs.
-Require Import Proofs.DSE.SecretPreservation.
-Require Import Proofs.DSE.Soundness.
-Require Import Proofs.DSE.Noninference.
+Require Import Proofs.safe_DSE.Defs.
+Require Import Proofs.safe_DSE.SecretPreservation.
+Require Import Proofs.safe_DSE.Soundness.
+Require Import Proofs.safe_DSE.Noninference.
 Require Import Proofs.UnskipProofs.
 
 
