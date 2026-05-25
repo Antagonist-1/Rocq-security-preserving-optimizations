@@ -19,11 +19,17 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Examples/Programs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecLookup.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/VarSetAgreement.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/Analysis/LivenessProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnskipProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnsafeDSEProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/EvalEquivalence.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/Noninference.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecEnvSubtyping.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/DSE/Defs.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/DSE/SecretPreservation.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/DSE/Soundness.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/DSE/Noninference.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/DSE/Core.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SafeDSEProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SafeDSESecurityProof.v
 	@echo "Running Tests ..."
