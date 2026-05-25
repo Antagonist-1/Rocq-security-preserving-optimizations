@@ -766,17 +766,6 @@ Proof.
   rewrite Hstart_opt, Hout_src. reflexivity.
 Qed.
 
-Ltac solve_unop :=
-  match goal with
-  | Hsrc1: eval_trace ?phi (?v1, ?t) ?c (?vf1, ?tr1),
-    Hopt1: eval_trace ?phi (?v1, ?t) ?c (?vf1_opt, ?tr1_opt),
-    Hsrc2: eval_trace ?phi (?v2, ?t) ?c (?vf2, ?tr2),
-    Hopt2: eval_trace ?phi (?v2, ?t) ?c (?vf2_opt, ?tr2_opt) |- _ =>
-    assert (Hdet1: (vf1_opt, tr1_opt) = (vf1, tr1)) by (eapply eval_trace_deterministic; [exact Hopt1 | exact Hsrc1]);
-    assert (Hdet2: (vf2_opt, tr2_opt) = (vf2, tr2)) by (eapply eval_trace_deterministic; [exact Hopt2 | exact Hsrc2]);
-    inversion Hdet1; inversion Hdet2; subst; reflexivity
-  end.
-
 Ltac contradict_branch_traces Hstep1 Hstep2 Hstart Hout :=
   let tail1 := fresh "tail1" in let Htail1 := fresh "Htail1" in
   let tail2 := fresh "tail2" in let Htail2 := fresh "Htail2" in
@@ -1050,9 +1039,9 @@ Qed.
 (** ** Main theorem of non-inference preservation *)
 
 (** [opt_unskip_preserves_safe_pgm] proves the non-inference half of
-    [is_safe_opt]. Any optimized trace execution can be expanded into a source
-    execution with the same final context by [opt_unskip_trace_complete], so the
-    source program's [non_inference] proof applies directly to optimized runs. *)
+    [is_safe_opt]. [opt_unskip_backward] expands optimized executions into
+    matching source executions; [opt_traces_equal] then transfers source trace
+    equality to the optimized runs. *)
 Lemma opt_unskip_preserves_safe_pgm : forall phi p secrets,
   is_safe_pgm phi p secrets ->
   is_safe_pgm phi (opt_unskip p secrets) secrets.
@@ -1093,339 +1082,166 @@ Qed.
 (** * Secret Preservation Support *)
 (* This part uses eval_sec *)
 
-Lemma match_sec_ctx_refl : forall sctx,
-  match_sec_ctx sctx sctx.
-Proof.
-  intros sctx.
-  unfold match_sec_ctx.
-  repeat split; try reflexivity.
-  apply trace_subseq_refl.
-Qed.
+Definition same_sec_state (sctx1 sctx2 : sec_context) : Prop :=
+  sec_val_of sctx1 = sec_val_of sctx2 /\
+  sec_of sctx1 = sec_of sctx2.
 
-Lemma match_sec_ctx_trans : forall sctx1 sctx2 sctx3,
-  match_sec_ctx sctx1 sctx2 ->
-  match_sec_ctx sctx2 sctx3 ->
-  match_sec_ctx sctx1 sctx3.
+Lemma eval_sec_same_state : forall phi c sctx sctx_out sctx',
+  eval_sec phi sctx c sctx_out ->
+  same_sec_state sctx sctx' ->
+  exists sctx_out',
+    eval_sec phi sctx' c sctx_out' /\
+    same_sec_state sctx_out sctx_out'.
 Proof.
-  intros sctx1 sctx2 sctx3 H12 H23.
-  unfold match_sec_ctx in *.
-  destruct H12 as [Hval12 [Hsec12 Htrace12]].
-  destruct H23 as [Hval23 [Hsec23 Htrace23]].
-  repeat split.
-  - rewrite Hval12. exact Hval23.
-  - rewrite Hsec12. exact Hsec23.
-  - eapply trace_subseq_trans; eauto.
-Qed.
-
-Lemma eval_sec_unopt_backward : forall phi c sctx_opt sctx_opt_out sctx_src,
-  eval_sec phi sctx_opt c sctx_opt_out ->
-  match_sec_ctx sctx_src sctx_opt ->
-  exists sctx_src_out,
-    eval_sec phi sctx_src c sctx_src_out /\
-    match_sec_ctx sctx_src_out sctx_opt_out.
-Proof.
-  intros phi c sctx_opt sctx_opt_out sctx_src Heval.
-  revert sctx_src.
-  induction Heval; intros sctx_src Hmatch.
-  - exists sctx_src. split; [constructor | exact Hmatch].
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    exists ((sctx_src sv$+ (x, a)) s$+ (x, level)).
-    split.
-    + eapply EvalSecAssign; [rewrite Hval; exact H | rewrite Hsec; exact H0].
-    + unfold match_sec_ctx. simpl. repeat split.
+  intros phi c sctx sctx_out sctx' Heval.
+  revert sctx'.
+  induction Heval; intros sctx' [Hval Hsec].
+  - exists sctx'. split; [constructor | split; assumption].
+  - exists ((sctx' sv$+ (x, a)) s$+ (x, level)). split.
+    + eapply EvalSecAssign; [rewrite <- Hval | rewrite <- Hsec]; eassumption.
+    + unfold same_sec_state. simpl. split.
       * rewrite Hval. reflexivity.
       * rewrite Hsec. reflexivity.
-      * exact Htrace.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    exists ((sctx_src sv$+ (x, a1)) s$+ (x, level)).
-    split.
+  - exists ((sctx' sv$+ (x, a1)) s$+ (x, level)). split.
     + eapply EvalSecCmovTrue.
-      * rewrite Hval. exact H.
+      * rewrite <- Hval. exact H.
       * exact H0.
-      * rewrite Hval. exact H1.
-      * rewrite Hval. exact H2.
-      * rewrite Hsec. exact H3.
-    + unfold match_sec_ctx. simpl. repeat split.
+      * rewrite <- Hval. exact H1.
+      * rewrite <- Hval. exact H2.
+      * rewrite <- Hsec. exact H3.
+    + unfold same_sec_state. simpl. split.
       * rewrite Hval. reflexivity.
       * rewrite Hsec. reflexivity.
-      * exact Htrace.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    exists ((sctx_src sv$+ (x, a2)) s$+ (x, level)).
-    split.
+  - exists ((sctx' sv$+ (x, a2)) s$+ (x, level)). split.
     + eapply EvalSecCmovFalse.
-      * rewrite Hval. exact H.
-      * rewrite Hval. exact H0.
-      * rewrite Hval. exact H1.
-      * rewrite Hsec. exact H2.
-    + unfold match_sec_ctx. simpl. repeat split.
+      * rewrite <- Hval. exact H.
+      * rewrite <- Hval. exact H0.
+      * rewrite <- Hval. exact H1.
+      * rewrite <- Hsec. exact H2.
+    + unfold same_sec_state. simpl. split.
       * rewrite Hval. reflexivity.
       * rewrite Hsec. reflexivity.
-      * exact Htrace.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    assert (Hmatch_body :
-      match_sec_ctx
+  - assert (Hbody_state :
+      same_sec_state
         (($0 $+ (x1, a1) $+ (x2, a2)), senv_mk2 x1 x2 level1 level2,
-          sec_trace_of sctx_src)
+          sec_trace_of ctx)
         (($0 $+ (x1, a1) $+ (x2, a2)), senv_mk2 x1 x2 level1 level2,
-          sec_trace_of ctx)).
-    { unfold match_sec_ctx. simpl. repeat split; try reflexivity. exact Htrace. }
-    destruct (IHHeval _ Hmatch_body)
-      as [sctx_src_body [Hbody Hmatch_body_out]].
-    unfold match_sec_ctx in Hmatch_body_out.
-    destruct Hmatch_body_out as [Hbody_val [Hbody_sec Hbody_trace]].
-    exists (sec_val_of sctx_src $+ (x, a), update_sec (sec_of sctx_src) x level,
-      sec_trace_of sctx_src_body).
-    split.
+          sec_trace_of sctx')) by (split; reflexivity).
+    destruct (IHHeval _ Hbody_state)
+      as [sctx_body' [Hbody Hbody_state_out]].
+    destruct Hbody_state_out as [Hbody_val Hbody_sec].
+    exists (sec_val_of sctx' $+ (x, a), update_sec (sec_of sctx') x level,
+      sec_trace_of sctx_body'). split.
     + eapply EvalSecAssignCall.
       * exact H.
-      * rewrite Hval. exact H0.
-      * rewrite Hval. exact H1.
-      * rewrite Hsec. exact H2.
-      * rewrite Hsec. exact H3.
+      * rewrite <- Hval. exact H0.
+      * rewrite <- Hval. exact H1.
+      * rewrite <- Hsec. exact H2.
+      * rewrite <- Hsec. exact H3.
       * exact Hbody.
-      * rewrite Hbody_val. exact H4.
-      * rewrite Hbody_sec. exact H5.
-    + unfold match_sec_ctx. simpl. repeat split.
+      * rewrite <- Hbody_val. exact H4.
+      * rewrite <- Hbody_sec. exact H5.
+    + unfold same_sec_state. simpl. split.
       * rewrite Hval. reflexivity.
       * rewrite Hsec. reflexivity.
-      * exact Hbody_trace.
-  - destruct (IHHeval1 _ Hmatch) as [sctx_src_mid [Hstep1 Hmatch_mid]].
-    destruct (IHHeval2 _ Hmatch_mid) as [sctx_src_out [Hstep2 Hmatch_out]].
-    exists sctx_src_out. split; [eapply EvalSecSequence; eauto | exact Hmatch_out].
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    assert (Hmatch_branch :
-      match_sec_ctx (sctx_src st++ Branch true) (ctx st++ Branch true)).
-    { unfold match_sec_ctx. simpl. repeat split; try assumption.
-      apply trace_subseq_append_keep. exact Htrace. }
-    destruct (IHHeval _ Hmatch_branch) as [sctx_src_out [Hstep Hmatch_out]].
-    exists sctx_src_out. split.
-    + eapply EvalSecIfTrue; [rewrite Hval; exact H | exact H0 | exact Hstep].
-    + exact Hmatch_out.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    assert (Hmatch_branch :
-      match_sec_ctx (sctx_src st++ Branch false) (ctx st++ Branch false)).
-    { unfold match_sec_ctx. simpl. repeat split; try assumption.
-      apply trace_subseq_append_keep. exact Htrace. }
-    destruct (IHHeval _ Hmatch_branch) as [sctx_src_out [Hstep Hmatch_out]].
-    exists sctx_src_out. split.
-    + eapply EvalSecIfFalse; [rewrite Hval; exact H | exact Hstep].
-    + exact Hmatch_out.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    assert (Hmatch_branch :
-      match_sec_ctx (sctx_src st++ Branch true) (ctx st++ Branch true)).
-    { unfold match_sec_ctx. simpl. repeat split; try assumption.
-      apply trace_subseq_append_keep. exact Htrace. }
-    destruct (IHHeval1 _ Hmatch_branch) as [sctx_src_mid [Hstep1 Hmatch_mid]].
-    destruct (IHHeval2 _ Hmatch_mid) as [sctx_src_out [Hstep2 Hmatch_out]].
-    exists sctx_src_out. split.
-    + eapply EvalSecWhileTrue; [rewrite Hval; exact H | exact H0 | exact Hstep1 | exact Hstep2].
-    + exact Hmatch_out.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    exists (sctx_src st++ Branch false). split.
-    + eapply EvalSecWhileFalse. rewrite Hval. exact H.
-    + unfold match_sec_ctx. simpl. repeat split; try assumption.
-      apply trace_subseq_append_keep. exact Htrace.
+  - destruct (IHHeval1 _ (conj Hval Hsec))
+      as [sctx1' [Hstep1 Hstate1]].
+    destruct (IHHeval2 _ Hstate1) as [sctx2' [Hstep2 Hstate2]].
+    exists sctx2'. split; [eapply EvalSecSequence; eauto | exact Hstate2].
+  - assert (Hbranch :
+      same_sec_state (ctx st++ Branch true) (sctx' st++ Branch true))
+      by (split; simpl; assumption).
+    destruct (IHHeval _ Hbranch) as [sctx_out' [Hstep Hstate_out]].
+    exists sctx_out'. split.
+    + eapply EvalSecIfTrue; [rewrite <- Hval; exact H | exact H0 | exact Hstep].
+    + exact Hstate_out.
+  - assert (Hbranch :
+      same_sec_state (ctx st++ Branch false) (sctx' st++ Branch false))
+      by (split; simpl; assumption).
+    destruct (IHHeval _ Hbranch) as [sctx_out' [Hstep Hstate_out]].
+    exists sctx_out'. split.
+    + eapply EvalSecIfFalse; [rewrite <- Hval; exact H | exact Hstep].
+    + exact Hstate_out.
+  - assert (Hbranch :
+      same_sec_state (ctx st++ Branch true) (sctx' st++ Branch true))
+      by (split; simpl; assumption).
+    destruct (IHHeval1 _ Hbranch) as [sctx1' [Hstep1 Hstate1]].
+    destruct (IHHeval2 _ Hstate1) as [sctx2' [Hstep2 Hstate2]].
+    exists sctx2'. split.
+    + eapply EvalSecWhileTrue; [rewrite <- Hval; exact H | exact H0 | exact Hstep1 | exact Hstep2].
+    + exact Hstate2.
+  - exists (sctx' st++ Branch false). split.
+    + eapply EvalSecWhileFalse. rewrite <- Hval. exact H.
+    + unfold same_sec_state. simpl. split; assumption.
 Qed.
 
-Lemma opt_unskip_skip_sec_complete : forall phi c sctx,
-  opt_unskip_cmd c = Skip ->
-  exists sctx_src_out,
-    eval_sec phi sctx c sctx_src_out /\
-    match_sec_ctx sctx_src_out sctx.
+Lemma opt_unskip_sec_forward : forall phi c sctx sctx_out sctx_opt,
+  eval_sec phi sctx c sctx_out ->
+  same_sec_state sctx sctx_opt ->
+  exists sctx_opt_out,
+    eval_sec phi sctx_opt (opt_unskip_cmd c) sctx_opt_out /\
+    same_sec_state sctx_out sctx_opt_out.
 Proof.
-  intros phi c.
-  induction c; simpl; intros sctx Hskip.
-  - exists sctx. split; [constructor | apply match_sec_ctx_refl].
-  - discriminate.
-  - discriminate.
-  - discriminate.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
+  intros phi c sctx sctx_out sctx_opt Heval.
+  revert sctx_opt.
+  induction Heval; intros sctx_opt Hstate; simpl.
+  - eapply eval_sec_same_state; [constructor | exact Hstate].
+  - eapply eval_sec_same_state; [eapply EvalSecAssign; eauto | exact Hstate].
+  - eapply eval_sec_same_state; [eapply EvalSecCmovTrue; eauto | exact Hstate].
+  - eapply eval_sec_same_state; [eapply EvalSecCmovFalse; eauto | exact Hstate].
+  - eapply eval_sec_same_state; [eapply EvalSecAssignCall; eauto | exact Hstate].
+  - destruct (IHHeval1 _ Hstate) as [sctx1_opt [Hstep1 Hstate1]].
+    destruct (IHHeval2 _ Hstate1) as [sctx2_opt [Hstep2 Hstate2]].
+    destruct (opt_unskip_cmd c1) eqn:Hc1;
     destruct (opt_unskip_cmd c2) eqn:Hc2;
-    try discriminate;
-    inversion Hskip; subst.
-    destruct (IHc1 sctx eq_refl) as [sctx1_src [Hsrc1 Hmatch1]].
-    destruct (IHc2 sctx1_src eq_refl) as [sctx2_src [Hsrc2 Hmatch2]].
-    exists sctx2_src. split.
-    + eapply EvalSecSequence; eauto.
-    + eapply match_sec_ctx_trans; eauto.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    try discriminate;
-    inversion Hskip; subst.
-    destruct (interp_arith e (sec_val_of sctx)) eqn:Hcond.
-    + destruct (IHc2 (sctx st++ Branch false) eq_refl)
-        as [sctx_src_out [Hsrc Hmatch]].
-      assert (Hbranch_match : match_sec_ctx (sctx st++ Branch false) sctx).
-      { unfold match_sec_ctx. simpl. repeat split; try reflexivity.
-        apply trace_subseq_append_drop. apply trace_subseq_refl. }
-      exists sctx_src_out. split.
-      * eapply EvalSecIfFalse; eauto.
-      * eapply match_sec_ctx_trans; eauto.
-    + destruct (IHc1 (sctx st++ Branch true) eq_refl)
-        as [sctx_src_out [Hsrc Hmatch]].
-      assert (Hbranch_match : match_sec_ctx (sctx st++ Branch true) sctx).
-      { unfold match_sec_ctx. simpl. repeat split; try reflexivity.
-        apply trace_subseq_append_drop. apply trace_subseq_refl. }
-      exists sctx_src_out. split.
-      * eapply EvalSecIfTrue with (c := S n); eauto.
-      * eapply match_sec_ctx_trans; eauto.
-  - discriminate.
+    repeat match goal with
+      | Hskip : eval_sec _ _ Skip _ |- _ => inversion Hskip; subst; clear Hskip
+    end;
+    eexists; split; eauto with unskip_db.
+  - destruct Hstate as [Hval Hsec].
+    assert (Hbranch :
+      same_sec_state (ctx st++ Branch true) (sctx_opt st++ Branch true))
+      by (split; simpl; assumption).
+    destruct (IHHeval _ Hbranch) as [sctx_opt_out [Hstep Hstate_out]].
+    destruct (opt_unskip_cmd thn) eqn:Hthn;
+    destruct (opt_unskip_cmd els) eqn:Hels.
+    1: {
+      inversion Hstep; subst; clear Hstep.
+      exists sctx_opt. split; [constructor |].
+      unfold same_sec_state in *. simpl in *. exact Hstate_out.
+    }
+    all: (exists sctx_opt_out; split;
+      [ eapply EvalSecIfTrue; [rewrite <- Hval; exact H | exact H0 | exact Hstep]
+      | exact Hstate_out ]).
+  - destruct Hstate as [Hval Hsec].
+    assert (Hbranch :
+      same_sec_state (ctx st++ Branch false) (sctx_opt st++ Branch false))
+      by (split; simpl; assumption).
+    destruct (IHHeval _ Hbranch) as [sctx_opt_out [Hstep Hstate_out]].
+    destruct (opt_unskip_cmd thn) eqn:Hthn;
+    destruct (opt_unskip_cmd els) eqn:Hels.
+    1: {
+      inversion Hstep; subst; clear Hstep.
+      exists sctx_opt. split; [constructor |].
+      unfold same_sec_state in *. simpl in *. exact Hstate_out.
+    }
+    all: (exists sctx_opt_out; split;
+      [ eapply EvalSecIfFalse; [rewrite <- Hval; exact H | exact Hstep]
+      | exact Hstate_out ]).
+  - destruct Hstate as [Hval Hsec].
+    assert (Hbranch :
+      same_sec_state (ctx st++ Branch true) (sctx_opt st++ Branch true))
+      by (split; simpl; assumption).
+    destruct (IHHeval1 _ Hbranch) as [sctx1_opt [Hstep1 Hstate1]].
+    destruct (IHHeval2 _ Hstate1) as [sctx2_opt [Hstep2 Hstate2]].
+    exists sctx2_opt. split.
+    + eapply EvalSecWhileTrue; [rewrite <- Hval; exact H | exact H0 | exact Hstep1 | exact Hstep2].
+    + exact Hstate2.
+  - destruct Hstate as [Hval Hsec].
+    exists (sctx_opt st++ Branch false). split.
+    + eapply EvalSecWhileFalse. rewrite <- Hval. exact H.
+    + unfold same_sec_state. simpl. split; assumption.
 Qed.
-
-Lemma opt_unskip_sec_backward_while : forall phi e body sctx_opt sctx_opt_out sctx_src,
-  eval_sec phi sctx_opt (While e (opt_unskip_cmd body)) sctx_opt_out ->
-  (forall sctx_o sctx_o_out sctx_s,
-    eval_sec phi sctx_o (opt_unskip_cmd body) sctx_o_out ->
-    match_sec_ctx sctx_s sctx_o ->
-    exists sctx_s_out,
-      eval_sec phi sctx_s body sctx_s_out /\
-      match_sec_ctx sctx_s_out sctx_o_out) ->
-  match_sec_ctx sctx_src sctx_opt ->
-  exists sctx_src_out,
-    eval_sec phi sctx_src (While e body) sctx_src_out /\
-    match_sec_ctx sctx_src_out sctx_opt_out.
-Proof.
-  intros phi e body sctx_opt sctx_opt_out sctx_src Hopt Hbody_ih Hmatch.
-  revert sctx_src Hmatch.
-  remember (While e (opt_unskip_cmd body)) as loop_cmd.
-  induction Hopt; intros sctx_src Hmatch; try discriminate.
-  - inversion Heqloop_cmd; subst; clear Heqloop_cmd.
-    unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    assert (Hmatch_branch :
-      match_sec_ctx (sctx_src st++ Branch true) (ctx st++ Branch true)).
-    { unfold match_sec_ctx. simpl. repeat split; try assumption.
-      apply trace_subseq_append_keep. exact Htrace. }
-    destruct (Hbody_ih _ _ _ Hopt1 Hmatch_branch)
-      as [sctx_src_mid [Hsrc_body Hmatch_mid]].
-    destruct (IHHopt2 eq_refl _ Hmatch_mid)
-      as [sctx_src_out [Hsrc_loop Hmatch_out]].
-    exists sctx_src_out. split.
-    + eapply EvalSecWhileTrue with (c := interp_arith e (sec_val_of ctx)).
-      * rewrite Hval. reflexivity.
-      * exact H0.
-      * exact Hsrc_body.
-      * exact Hsrc_loop.
-    + exact Hmatch_out.
-  - inversion Heqloop_cmd; subst; clear Heqloop_cmd.
-    unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    assert (Hmatch_branch :
-      match_sec_ctx (sctx_src st++ Branch false) (ctx st++ Branch false)).
-    { unfold match_sec_ctx. simpl. repeat split; try assumption.
-      apply trace_subseq_append_keep. exact Htrace. }
-    exists (sctx_src st++ Branch false). split.
-    + eapply EvalSecWhileFalse. rewrite Hval. exact H.
-    + exact Hmatch_branch.
-Qed.
-
-Lemma opt_unskip_sec_complete : forall phi c sctx_opt sctx_opt_out sctx_src,
-  eval_sec phi sctx_opt (opt_unskip_cmd c) sctx_opt_out ->
-  match_sec_ctx sctx_src sctx_opt ->
-  exists sctx_src_out,
-    eval_sec phi sctx_src c sctx_src_out /\
-    match_sec_ctx sctx_src_out sctx_opt_out.
-Proof.
-  intros phi c. revert phi.
-  induction c; intros phi sctx_opt sctx_opt_out sctx_src Hopt Hmatch; simpl in Hopt.
-  - eapply eval_sec_unopt_backward; eauto.
-  - eapply eval_sec_unopt_backward; eauto.
-  - eapply eval_sec_unopt_backward; eauto.
-  - eapply eval_sec_unopt_backward; eauto.
-  - destruct (opt_unskip_cmd c1) eqn:Hc1;
-    destruct (opt_unskip_cmd c2) eqn:Hc2;
-    lazymatch type of Hc1 with
-    | _ = Skip =>
-      lazymatch type of Hc2 with
-      | _ = Skip =>
-        inversion Hopt; subst;
-        destruct (opt_unskip_skip_sec_complete phi c1 sctx_src Hc1)
-          as [sctx1_src [Hsrc1 Hmatch1]];
-        destruct (opt_unskip_skip_sec_complete phi c2 sctx1_src Hc2)
-          as [sctx2_src [Hsrc2 Hmatch2]];
-        exists sctx2_src; split;
-        [ eapply EvalSecSequence; eauto
-        | eapply match_sec_ctx_trans; [exact Hmatch2 |];
-          eapply match_sec_ctx_trans; eauto ]
-      | _ =>
-        destruct (opt_unskip_skip_sec_complete phi c1 sctx_src Hc1)
-          as [sctx1_src [Hsrc1 Hmatch1]];
-        edestruct (IHc2 phi sctx_opt sctx_opt_out sctx1_src)
-          as [sctx2_src [Hsrc2 Hmatch2]];
-        [ exact Hopt | eapply match_sec_ctx_trans; eauto |];
-        exists sctx2_src; split;
-        [ eapply EvalSecSequence; eauto | exact Hmatch2 ]
-      end
-    | _ =>
-      lazymatch type of Hc2 with
-      | _ = Skip =>
-        edestruct (IHc1 phi sctx_opt sctx_opt_out sctx_src)
-          as [sctx1_src [Hsrc1 Hmatch1]];
-        [ exact Hopt | exact Hmatch |];
-        destruct (opt_unskip_skip_sec_complete phi c2 sctx1_src Hc2)
-          as [sctx2_src [Hsrc2 Hmatch2]];
-        exists sctx2_src; split;
-        [ eapply EvalSecSequence; eauto | eapply match_sec_ctx_trans; eauto ]
-      | _ =>
-        inversion Hopt; subst; clear Hopt;
-        match goal with
-        | Hstep1 : eval_sec phi sctx_opt _ ?sctx1_opt,
-          Hstep2 : eval_sec phi ?sctx1_opt _ sctx_opt_out |- _ =>
-            edestruct (IHc1 phi sctx_opt sctx1_opt sctx_src)
-              as [sctx1_src [Hsrc1 Hmatch1]];
-            [ exact Hstep1 | exact Hmatch |];
-            edestruct (IHc2 phi sctx1_opt sctx_opt_out sctx1_src)
-              as [sctx2_src [Hsrc2 Hmatch2]];
-            [ exact Hstep2 | exact Hmatch1 |];
-            exists sctx2_src; split;
-            [ eapply EvalSecSequence; eauto | exact Hmatch2 ]
-        end
-      end
-    end.
-  - unfold match_sec_ctx in Hmatch.
-    destruct Hmatch as [Hval [Hsec Htrace]].
-    destruct (opt_unskip_cmd c1) eqn:Hc1, (opt_unskip_cmd c2) eqn:Hc2;
-    try (
-      inversion Hopt; subst; clear Hopt;
-      [ assert (Hmatch_branch :
-          match_sec_ctx (sctx_src st++ Branch true) (sctx_opt st++ Branch true))
-          by (unfold match_sec_ctx; simpl; repeat split; try assumption;
-              apply trace_subseq_append_keep; exact Htrace);
-        edestruct IHc1 as [sctx_src_out [Hsrc Hmatch_out]];
-        [eassumption | exact Hmatch_branch |];
-        exists sctx_src_out; split;
-        [ eapply EvalSecIfTrue with (c := interp_arith e (sec_val_of sctx_opt));
-          [rewrite Hval; reflexivity | eassumption | exact Hsrc]
-        | exact Hmatch_out ]
-      | assert (Hmatch_branch :
-          match_sec_ctx (sctx_src st++ Branch false) (sctx_opt st++ Branch false))
-          by (unfold match_sec_ctx; simpl; repeat split; try assumption;
-              apply trace_subseq_append_keep; exact Htrace);
-        edestruct IHc2 as [sctx_src_out [Hsrc Hmatch_out]];
-        [eassumption | exact Hmatch_branch |];
-        exists sctx_src_out; split;
-        [ eapply EvalSecIfFalse; [rewrite Hval; eassumption | exact Hsrc]
-        | exact Hmatch_out ]
-      ]
-    ).
-    inversion Hopt; subst; clear Hopt.
-    destruct (opt_unskip_skip_sec_complete phi (If e c1 c2) sctx_src)
-      as [sctx_src_out [Hsrc Hmatch_src]].
-    + simpl. rewrite Hc1, Hc2. reflexivity.
-    + exists sctx_src_out. split; [exact Hsrc |].
-      eapply match_sec_ctx_trans; [exact Hmatch_src |].
-      unfold match_sec_ctx. repeat split; assumption.
-  - eapply opt_unskip_sec_backward_while; eauto.
-Qed.
-
 
 (** ** Main theorem of secret preservation *)
 
@@ -1433,24 +1249,14 @@ Qed.
     [is_safe_opt]: optimized execution preserves the final security labels and
     values of variables that are secret in the source final security environment.
 
-    The proof needs one optimizer-specific expansion lemma:
+    The proof uses one optimizer-specific simulation lemma:
 
-    - [opt_unskip_sec_complete]: every [eval_sec] execution of [opt_unskip_cmd c]
-      can be expanded to an [eval_sec] execution of the source [c] whose final
-      context matches the optimized final context. Values and security labels
-      are equal; optimized traces may omit removed branch events.
+    - [opt_unskip_sec_forward]: every source [eval_sec] execution induces an
+      optimized execution with the same final valuation and security environment.
+      Traces are irrelevant here because this property does not compare them.
 
-    Once the optimized run is expanded back to a source run, the rest is generic:
-
-    - [eval_sec_deterministic]: the original source run and reconstructed source
-      run start from the same security context and execute the same command, so
-      their final security contexts are equal.
-
-    The final [match_sec_ctx] relation then yields both required conclusions:
-
-    - final security labels agree for every variable;
-    - values agree on every variable that is secret in the source final
-      security environment. *)
+    The supplied optimized run is then identified with the induced run using
+    [eval_sec_deterministic]. *)
 Lemma opt_unskip_keeps_secrets_secret :
   opt_keeps_secrets_secret opt_unskip.
 Proof.
@@ -1459,14 +1265,13 @@ Proof.
   simpl in Hopt.
   inversion Hopt; subst; clear Hopt.
   simpl in Hopt_eval.
-  destruct (opt_unskip_sec_complete phi c sctx sctx'' sctx
-    Hopt_eval (match_sec_ctx_refl sctx))
-    as [sctx_src [Hsrc_from_opt Hmatch_out]].
-  assert (Hsame : sctx' = sctx_src)
+  destruct (opt_unskip_sec_forward phi c sctx sctx' sctx
+    Hsrc (conj eq_refl eq_refl))
+    as [sctx_opt [Hopt_from_src Hstate_out]].
+  assert (Hsame : sctx'' = sctx_opt)
     by (eapply eval_sec_deterministic; eauto).
-  subst sctx_src.
-  unfold match_sec_ctx in Hmatch_out.
-  destruct Hmatch_out as [Hval [Hsec _]].
+  subst sctx_opt.
+  destruct Hstate_out as [Hval Hsec].
   split.
   - rewrite Hsec. reflexivity.
   - unfold agree_on_secret.

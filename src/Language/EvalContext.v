@@ -87,14 +87,6 @@ Definition match_ctx (ctx_src ctx_opt : context) : Prop :=
   val_of ctx_src = val_of ctx_opt /\
   trace_subseq (trace_of ctx_src) (trace_of ctx_opt).
 
-(* The security environment and valuation must match exactly, but the security
-trace can drop branches. *)
-Definition match_sec_ctx (sctx_src sctx_opt : sec_context) : Prop :=
-  sec_val_of sctx_src = sec_val_of sctx_opt /\
-  sec_of sctx_src = sec_of sctx_opt /\
-  trace_subseq (sec_trace_of sctx_src) (sec_trace_of sctx_opt).
-
-
 Create HintDb trace_subseq_db.
 Hint Constructors trace_subseq : trace_subseq_db.
 (* If opt is a subseq of src, we can append an event to src and drop it. *)
