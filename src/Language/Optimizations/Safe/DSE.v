@@ -36,6 +36,7 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
   match c with
   | Skip => Skip
   | Assign x e =>
+      (* Drop the assignment only if [x] is dead, currently public, and [e] evaluates to public. *)
       match (VarSet.mem x out), (sec_lookup secrets x), (interp_sec e secrets) with
       | false, Public, Public => Skip
       | _, _, _ => Assign x e
