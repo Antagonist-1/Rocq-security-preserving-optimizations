@@ -1,6 +1,9 @@
 (** * CS-428: Interactive Theorem Proving, Spring 2026 - Lab 6
     Adapted from 6.822 Formal Reasoning About Programs, Spring 2022 *)
 
+
+(* The fmap was taken from lab 6 of CS-428, and used for variable valuation in our language.*)
+
 From Stdlib Require Import Classical ClassicalEpsilon FunctionalExtensionality Arith.
 
 Set Implicit Arguments.

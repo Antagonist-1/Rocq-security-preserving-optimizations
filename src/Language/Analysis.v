@@ -39,23 +39,12 @@ Fixpoint while_fixpoint  (f: var_set -> var_set) (cond_vars: var_set) (out: var_
       else while_fixpoint f cond_vars _in n
   end.
 
-(*note: n_vars is enough to iterate. because f is monotonous, and there are a bound number of variables.*)
+(*note: When computing liveness of variables in a while loop, n_vars iterations is enough: 
+because f is strictly monotonous, and there are a bound number of variables.*)
 
-(*Set of all vars stored by some program*) (*This is unused for now. We need it if we do While loop elimination *)
-(* Fixpoint written_vars (c: cmd) : var_set := *)
-(*   match c with *)
-(*   | Skip => VarSet.empty *)
-(*   | Assign x _ => VarSet.singleton x *)
-(*   | AssignCall x _ _ _ => VarSet.singleton x *)
-(*   | Sequence c1 c2 => VarSet.union (written_vars c1) (written_vars c2) *)
-(*   | If _ thenC elseC => VarSet.union (written_vars thenC) (written_vars elseC) *)
-(*   | While _ body => written_vars body *)
-(*   end. *)
-
-
-(* compute live variables, given live variables from after command *)
+(* liveness computes live variables before command, given live variables after command *)
 (* The analysis goes backwards. *)
-(* formula: live_in = live_out + vars used in command - vars overwritten in command *)
+(* formula: live_in = live_out + 'vars used in command' - 'vars overwritten in command' *)
 
 (*More details about formula: https://cs420.epfl.ch/c/06_dataflow.html*)
 Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
@@ -63,7 +52,7 @@ Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
   | Skip => out
   | Assign x e =>
       (* if the assigned value is not live, the values used dont become live
-      -> propagates backwardsunuse of variables *)
+      -> propagates backwards 'unuse' of variables *)
       if VarSet.mem x out
       then VarSet.union (VarSet.remove x out) (vars_in_expr e)
       else out
