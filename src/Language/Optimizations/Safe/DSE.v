@@ -5,7 +5,10 @@ Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.Unskip.
 Require Import VarSets.
 
+(* computes security environment of variables after evaluating c*)
 
+(* This matches the ct_cmd inductive except for the while case, which is too restrictive on purpose. 
+Proving security DSE otherwise would be too timetaking *)
 Fixpoint sec_post (c: cmd) (se: sec_env) : sec_env :=
   match c with
   | Skip => se
@@ -22,12 +25,12 @@ Fixpoint sec_post (c: cmd) (se: sec_env) : sec_env :=
   | If _ thenC elseC =>
       join_sec_env (sec_post thenC se) (sec_post elseC se)
   | While _ body =>
-      (* Conservative temporary approximation: any variable mentioned in the
+      (* Conservative approximation: any variable mentioned in the
          loop may be secret after some iteration. *)
       VarSet.union se (vars_in_cmd body)
   end.
 
-
+(* Variables that shouldn't be optimized away are secrets (after propagation) and the program's output variables*)
 Definition protected_out (pgm: program) (secrets: sec_env) : var_set :=
   VarSet.union (output_of pgm) (sec_post (cmd_of pgm) secrets).
 
@@ -41,8 +44,9 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
       | false, Public, Public => Skip
       | _, _, _ => Assign x e
       end
-        (* Keep assigncalls for now; they are treated conservatively by [sec_post]. *)
+    (* Keep all assigncalls : they are treated conservatively in our case. *)
   | AssignCall x f e1 e2 => AssignCall x f e1 e2
+  (* Cmov assignements are treated the same way as normal assignments*)
   | Cmov x cond e1 e2 =>
       match (VarSet.mem x out), (sec_lookup secrets x),
             (join_sec (interp_sec cond secrets)
@@ -62,5 +66,6 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
       While e body
   end.
 
+  (* wrapper for Secure Dead Store Elimination*)
 Definition opt_safe_dse (pgm: program) (secrets: sec_env): program :=
   (opt_unskip_cmd (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets), output_of pgm).
