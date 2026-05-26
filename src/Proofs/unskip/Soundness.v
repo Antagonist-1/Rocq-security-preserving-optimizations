@@ -1,0 +1,20 @@
+Require Import Map.
+Require Import Language.Main.
+Require Import Language.Analysis.
+Require Import Language.Optimizations.Safe.Unskip.
+
+
+Create HintDb unskip_db.
+Hint Constructors eval eval_trace eval_sec : unskip_db.
+
+Lemma opt_unskip_sound: forall phi c v v',
+  eval phi v c v' ->
+  eval phi v (opt_unskip_cmd c) v'.
+Proof.
+    induction 1; simpl; intros; eauto with unskip_db.
+    all: repeat match goal with
+    | [ |- context[match ?pat with _ => _ end]] => destruct pat
+    end.
+    all: try inversion IHeval1; try inversion IHeval2; subst;
+    eauto with unskip_db.
+Qed.
