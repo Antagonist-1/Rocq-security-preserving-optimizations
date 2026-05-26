@@ -3,9 +3,11 @@ Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.DSE.
+Require Import Proofs.Analysis.LivenessProofs.
+Require Import Proofs.safe_DSE.Defs.
 Require Import Proofs.VarSetAgreement.
-Require Import Proofs.UnsafeDSEProofs.
 Require Import Proofs.UnskipProofs.
+Require Import Proofs.EvalEquivalence.
 
 
 Lemma eval_liveness_coincidence: forall phi c out v1 v2 v1',
@@ -120,7 +122,6 @@ Proof.
     + simpl. eapply agree_on_subset; [| exact H_agree].
       apply while_fixpoint_contains_out.
 Qed.
-
 
 Lemma safe_dse_helper_sound: forall phi c out v1 v2 v1' secrets,
   agree_on (liveness c out) v1 v2 ->
@@ -279,4 +280,24 @@ Proof.
   eapply agree_on_subset; [| exact Hdse_agree].
   simpl. unfold VarSet.Subset. intros x Hx.
   apply VarSet.union_spec. left. exact Hx.
+Qed.
+
+Lemma opt_safe_dse_core_eval_sec_sound :
+  opt_eval_sec_sound opt_safe_dse_core.
+Proof.
+  unfold opt_eval_sec_sound, opt_safe_dse_core.
+  intros phi sctx sctx' [c out] Hsrc.
+  destruct sctx as [[v se] t].
+  destruct sctx' as [[v' se'] t'].
+  simpl in *.
+  pose proof (Eval_proj_sec_trace phi (v, se, t) c (v', se', t') Hsrc) as Heval.
+  pose proof (safe_dse_helper_sound phi c
+    (VarSet.union out (sec_post c se))
+    v v v' se (agree_on_refl _ _) Heval) as Hsound.
+  destruct Hsound as [v_opt [Hopt _]].
+  destruct (Eval_lift_trace_sec phi v
+    (safe_dse_helper c (VarSet.union out (sec_post c se)) se)
+    v_opt Hopt se t) as [sec_opt [trace_opt Hsec_opt]].
+  exists (v_opt, sec_opt, trace_opt).
+  exact Hsec_opt.
 Qed.

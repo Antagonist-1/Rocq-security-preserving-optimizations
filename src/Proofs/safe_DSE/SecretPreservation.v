@@ -3,28 +3,20 @@ Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.DSE.
-Require Import Language.Optimizations.Safe.Unskip.
+Require Import Proofs.Analysis.LivenessProofs.
+Require Import Proofs.safe_DSE.Defs.
 Require Import Proofs.VarSetAgreement.
-Require Import Proofs.SafeDSEProofs.
-Require Import Proofs.EvalEquivalence.
 Require Import Proofs.SecLookup.
-Require Import Proofs.UnskipProofs.
-Require Import Proofs.UnsafeDSEProofs.
 Require Import Proofs.SecEnvSubtyping.
-Require Import Proofs.Noninference.
-
-
-
-(* Helper tactics *)
 
 
 Ltac destruct_agree_while H :=
   match type of H with
   | agree_on (while_fixpoint (liveness ?body) (vars_in_expr ?e) ?out ?fuel) _ _ =>
     pose proof (liveness_while_cond_subset body e out) as He;
-    pose proof (agree_on_subset _ _ _ _ He H) as Hagree_vars; 
+    pose proof (agree_on_subset _ _ _ _ He H) as Hagree_vars;
     pose proof (while_fixpoint_contains_out) as Hout;
-    pose proof (agree_on_subset _ _ _ _ (Hout _ _ _ _) H)  as Hagree_out;
+    pose proof (agree_on_subset _ _ _ _ (Hout _ _ _ _) H) as Hagree_out;
      clear He Hout
   end.
 
@@ -37,15 +29,6 @@ Ltac solve_interp_from_agree Heval Hagree :=
 Ltac finish_sec_same H :=
   eexists; split; [exact H | constructor; [intro y; reflexivity | reflexivity | apply agree_on_refl]].
 
-(** * Records to define properties *) 
-(* instead of using conjunctions, for better readability (avoid  repeated split) *)
-
-
-(* Two context coincide if they have the same trace and they agree on the output variables. *) 
-Record trace_coincide (out : var_set) (ctx_src ctx_opt : context) : Prop := {
-  trace_coincide_trace : trace_of ctx_src = trace_of ctx_opt;
-  trace_coincide_vals : agree_on out (val_of ctx_src) (val_of ctx_opt)
-}.
 
 (* Two sec_context coincide if : 1. their sec_env are the same, 2. their traces are the same, 3. they agree on the output variables. *)
 Record sec_coincide (out : var_set) (ctx1 ctx2 : sec_context) : Prop := {
@@ -129,14 +112,6 @@ Proof.
     apply while_fixpoint_contains_out.
 Qed.
 
-
-Definition opt_safe_dse_core (pgm: program) (secrets: sec_env) : program :=
-  (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets,
-   output_of pgm).
-
-(** * 3. Secret preservation (eval_sec) *)
-
-
 Lemma agree_on_protected_out_implies_agree_on_secret : forall phi ctx c out ctx' v_opt,
   eval_sec phi ctx c ctx' ->
   agree_on (VarSet.union out (sec_post c (sec_of ctx))) (sec_val_of ctx') v_opt ->
@@ -152,7 +127,6 @@ Proof.
   apply mem_lookup_simpl_2.
   eapply sec_post_overapproximates_eval_sec; eauto.
 Qed.
-
 
 Lemma eval_sec_liveness_coincidence_skip : forall phi out ctx1 ctx2,
   sec_liveness_hyp Skip out ctx1 ctx2 ->
@@ -574,7 +548,7 @@ Proof.
     repeat split; eauto.
 Qed.
 
-(* Any evaluation of the optimized program can be matched to an evaluation of the original program 
+(* Any evaluation of the optimized program can be matched to an evaluation of the original program
    that have : 1. same sec. labels, 2. same trace, 3. agree on the out variables. *)
 Lemma safe_dse_helper_sec_complete : forall phi c out secrets ctx ctx_opt,
   sec_env_sub (sec_of ctx) secrets ->
@@ -686,7 +660,6 @@ Proof.
   - finish_sec_same Hopt.
 Qed.
 
-(* Main theorem for secret preservation on the helper*)
 Lemma opt_safe_dse_core_keeps_secrets_secret :
   opt_keeps_secrets_secret opt_safe_dse_core.
 Proof.
@@ -709,131 +682,4 @@ Proof.
   split.
   - apply Hsec_eq.
   - eapply agree_on_protected_out_implies_agree_on_secret; eauto.
-Qed.
-
-(* Needed for composition *)
-Lemma opt_safe_dse_core_eval_sec_sound :
-  opt_eval_sec_sound opt_safe_dse_core.
-Proof.
-  unfold opt_eval_sec_sound, opt_safe_dse_core.
-  intros phi sctx sctx' [c out] Hsrc.
-  destruct sctx as [[v se] t].
-  destruct sctx' as [[v' se'] t'].
-  simpl in *.
-  pose proof (Eval_proj_sec_trace phi (v, se, t) c (v', se', t') Hsrc) as Heval.
-  pose proof (safe_dse_helper_sound phi c
-    (VarSet.union out (sec_post c se))
-    v v v' se (agree_on_refl _ _) Heval) as Hsound.
-  destruct Hsound as [v_opt [Hopt _]].
-  destruct (Eval_lift_trace_sec phi v
-    (safe_dse_helper c (VarSet.union out (sec_post c se)) se)
-    v_opt Hopt se t) as [sec_opt [trace_opt Hsec_opt]].
-  exists (v_opt, sec_opt, trace_opt).
-  exact Hsec_opt.
-Qed.
-
-(** * 4. Trace Preservation (eval_trace / is_safe_pgm) *)
-
-(* eval_trace only updated var that occur in the command. *) 
-(* Variables not mentioned in the optimized command are unchanged,
-   so public agreement for them follows from initial agreement. *)
-Lemma eval_trace_frame : forall phi ctx c ctx',
-    eval_trace phi ctx c ctx' ->
-    forall x,  ~ VarSet.In x (vars_in_cmd c) -> (val_of ctx') $? x = (val_of ctx) $? x.
-Proof.
-    induction 1; simpl in *; intros.
-    all: try (destruct (x ==v x0); [VarSetDecide.fsetdec | apply lookup_add_ne; congruence]).
-    all: try (apply IHeval_trace; VarSetDecide.fsetdec).
-    all: try (rewrite IHeval_trace2 by VarSetDecide.fsetdec;
-      apply IHeval_trace1; VarSetDecide.fsetdec).
-    all: reflexivity.
-Qed.
-
-(* Every traced execution of safe_dse_helper can be matched to an evaluation of the source program with
-   the same trace and the same out *)
-Lemma opt_safe_dse_helper_trace_complete : forall phi c out ctx ctx_opt secrets,
-  eval_trace phi ctx (safe_dse_helper c out secrets) ctx_opt ->
-  exists ctx_src,
-    eval_trace phi ctx c ctx_src /\
-    trace_coincide out ctx_src ctx_opt.
-Proof.
-  intros phi c out [v t] [v_opt t_opt] secrets Hopt.
-  destruct (Eval_lift_sec phi v t (safe_dse_helper c out secrets) v_opt t_opt Hopt secrets)
-    as [se_opt Hopt_sec].
-  pose proof (safe_dse_helper_sec_complete phi c out secrets
-    (v, secrets, t) (v_opt, se_opt, t_opt)
-    (sec_env_sub_refl secrets) Hopt_sec) as Hcomplete.
-  destruct Hcomplete as [ctx_src_sec [Hsrc_sec Hcoin_sec]].
-  exists (sec_val_of ctx_src_sec, sec_trace_of ctx_src_sec).
-  split.
-  - exact (Eval_proj_sec phi (v, secrets, t) c ctx_src_sec Hsrc_sec).
-  - destruct Hcoin_sec as [_ Htrace Hagree].
-    constructor; simpl; exact Htrace || exact Hagree.
-Qed.
-
-(** ** Main theorem for non inference preservation *)
-Lemma opt_safe_dse_core_preserves_safe_pgm : forall phi p secrets,
-    is_safe_pgm phi p secrets ->
-    is_safe_pgm phi (opt_safe_dse_core p secrets) secrets.
-Proof.
-  unfold is_safe_pgm, opt_safe_dse_core in *.
-  intros phi [c out] secrets [secrets' Hni].
-  simpl in *.
-  exists (VarSet.union secrets
-    (vars_in_cmd (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets))).
-  unfold non_inference in *.
-  intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
-
-  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hopt_eval1)
-    as Htrace_complete1.
-  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ _ Hopt_eval2)
-    as Htrace_complete2.
-  destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 Hcoin1]].
-  destruct Hcoin1 as [Htrace1 Hagree1].
-  destruct Htrace_complete2 as [[v2_out trace2_out] [Heval2 Hcoin2]].
-  destruct Hcoin2 as [Htrace2 Hagree2].
-  simpl in *.
-
-  specialize (Hni v1 v2 t_in v1_out v2_out trace1_out trace2_out).
-  specialize (Hni Hagree Heval1 Heval2).
-  split.
-  - destruct Hni as [Htrace_equal _].
-    congruence.
-  - unfold agree_on_public.
-    intros x Hx.
-    pose proof (eval_trace_frame _ _ _ _ Hopt_eval1 x) as Hframe1.
-    pose proof (eval_trace_frame _ _ _ _ Hopt_eval2 x) as Hframe2.
-    simpl in *.
-    rewrite Hframe1.
-    rewrite Hframe2.
-    + apply Hagree.
-      VarSetDecide.fsetdec.
-    + VarSetDecide.fsetdec.
-    + VarSetDecide.fsetdec.
-Qed.
-
-(** * 5. Putting the Core Proof Together *)
-
-Theorem opt_safe_dse_core_secure : forall phi,
-  is_safe_opt phi opt_safe_dse_core.
-Proof.
-  intros phi.
-  unfold is_safe_opt.
-  split.
-  - apply opt_safe_dse_core_preserves_safe_pgm.
-  - apply opt_safe_dse_core_keeps_secrets_secret.
-Qed.
-
-
-(** * 6. Putting it all together to prove dse is secure *)
-
-Theorem opt_safe_dse_secure : forall phi,
-  is_safe_opt phi opt_safe_dse.
-Proof.
-  intros phi.
-  change (is_safe_opt phi (compose_opt opt_unskip opt_safe_dse_core)).
-  eapply is_safe_opt_compose.
-  - apply opt_safe_dse_core_secure.
-  - apply opt_unskip_secure.
-  - apply opt_safe_dse_core_eval_sec_sound.
 Qed.

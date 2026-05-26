@@ -19,13 +19,18 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Examples/Programs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecLookup.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/VarSetAgreement.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/Analysis/LivenessProofs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnskipProofs.v
-	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnsafeDSEProofs.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/unsafe_DSE/Soundness.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/unsafe_DSE/NotSecure.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/EvalEquivalence.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/Noninference.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecEnvSubtyping.v
-	$(ROCQC) $(ROCQFLAGS) src/Proofs/SafeDSEProofs.v
-	$(ROCQC) $(ROCQFLAGS) src/Proofs/SafeDSESecurityProof.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/Defs.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/SecretPreservation.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/Soundness.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/Noninference.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/Core.v
 	@echo "Running Tests ..."
 	@for file in src/Examples/*.v; do \
 		echo "Compiling $$file"; \
