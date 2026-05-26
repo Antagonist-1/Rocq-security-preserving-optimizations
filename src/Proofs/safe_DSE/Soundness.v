@@ -6,7 +6,7 @@ Require Import Language.Optimizations.Safe.DSE.
 Require Import Proofs.Analysis.LivenessProofs.
 Require Import Proofs.safe_DSE.Defs.
 Require Import Proofs.VarSetAgreement.
-Require Import Proofs.UnskipProofs.
+Require Import Proofs.unskip.Soundness.
 Require Import Proofs.EvalEquivalence.
 
 

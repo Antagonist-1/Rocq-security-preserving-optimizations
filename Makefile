@@ -20,7 +20,10 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecLookup.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/VarSetAgreement.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/Analysis/LivenessProofs.v
-	$(ROCQC) $(ROCQFLAGS) src/Proofs/UnskipProofs.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/unskip/Soundness.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/unskip/Noninference.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/unskip/SecretPreservation.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/unskip/Core.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/unsafe_DSE/Soundness.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/unsafe_DSE/NotSecure.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/EvalEquivalence.v

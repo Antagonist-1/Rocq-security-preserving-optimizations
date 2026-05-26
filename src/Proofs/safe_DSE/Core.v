@@ -5,7 +5,7 @@ Require Import Proofs.safe_DSE.Defs.
 Require Import Proofs.safe_DSE.SecretPreservation.
 Require Import Proofs.safe_DSE.Soundness.
 Require Import Proofs.safe_DSE.Noninference.
-Require Import Proofs.UnskipProofs.
+Require Import Proofs.unskip.Core.
 
 
 Theorem opt_safe_dse_core_secure : forall phi,
