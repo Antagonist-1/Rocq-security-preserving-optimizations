@@ -3,6 +3,8 @@ From Stdlib Require Export Program.Equality.
 Require Import Map.
 From Stdlib Require Import String.
 
+(* The core of syntax and semantics were taken from Lab 6 from the CS-428 course *)
+
 Arguments N.add : simpl nomatch.
 Arguments N.sub : simpl nomatch.
 Arguments N.mul : simpl nomatch.

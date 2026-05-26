@@ -7,6 +7,9 @@ From Stdlib Require Import Lia.
 From Stdlib Require Import List.
 Import ListNotations.
 
+(* The core of syntax and semantics were taken from Lab 6 from the CS-428 course *)
+
+
 (** ** Semantics *)
 (** For expressions, we'll use an interpreter to implement the following rules::
 
@@ -99,6 +102,19 @@ Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
 
    Here is how it looks in Rocq: *)
 
+   (* We also add rules [EvalCmovTrue] and [EvalCmovFalse] for conditional moves:
+
+               ⟦cond⟧ᵥ = c    c <> 0
+               ⟦e1⟧ᵥ = a1    ⟦e2⟧ᵥ = a2
+       ----------------------------------------- EvalCmovTrue
+        (v, Cmov x cond e1 e2) ↓ᵩ (v $+ (x, a1))
+
+                  ⟦cond⟧ᵥ = 0
+               ⟦e1⟧ᵥ = a1    ⟦e2⟧ᵥ = a2
+       ----------------------------------------- EvalCmovFalse
+        (v, Cmov x cond e1 e2) ↓ᵩ (v $+ (x, a2))
+   *)
+
 
 
 Inductive eval (phi: function_env): valuation -> cmd -> valuation -> Prop :=
@@ -183,7 +199,11 @@ Theorem eval_deterministic :
 Qed.
 
 
-
+(* 
+eval_trace builds the same tree as eval, but carries extra interpretation information: the trace
+The trace is useful for security purposes. We write down each of the branch the program chose. 
+The trace could later be generalized to carry other information, such as memory accesses.
+*)
 Inductive eval_trace (phi: function_env): context -> cmd -> context -> Prop :=
   | EvalTraceSkip: forall ctx,
       eval_trace phi ctx Skip ctx
@@ -291,25 +311,14 @@ Qed.
 
 (*
    Augment the eval relation to also track security levels.
-   The new rules are detailed below.
+   Some things were changed about the original eval to allow only secure programs to execute:
 
-
-   [EvalSecAssign]
-   adds the premise
-    [interp_sec e (sec_of ctx) = level]
-   and updates both the valuation and the security environment,
-   so the assigned variable receives both its value and its computed security label.
-
-   [EvalSecAssignCall]
-   adds security-level evaluation premises for the two arguments,
-    [interp_sec e1 (sec_of ctx) = level1] and
-    [interp_sec e2 (sec_of ctx) = level2].
-   The callee then runs in a fresh security environment initialized
-   with those argument labels.
-   The caller additionally requires
-    [sec_lookup (sec_of ctx') y = level]
-   so that the return variable's security label can
-   be propagated back to the assignee.
+  [EvalSecAssign] adds the associated security level (derived from the assignee) in the sec_env
+  [EvalSecAssignCall] needs to assign the correct security level to its parameters:
+      [interp_sec e1 (sec_of ctx) = level1] and
+      [interp_sec e2 (sec_of ctx) = level2].
+    The callee then runs in a fresh security environment initialized with those argument labels.
+    The security label of the return value is then kept.
  *)
 
 
