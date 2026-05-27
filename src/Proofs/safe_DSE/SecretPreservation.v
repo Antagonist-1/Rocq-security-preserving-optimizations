@@ -124,7 +124,7 @@ Proof.
   rewrite VarSetEqProps.union_mem.
   apply Bool.orb_true_intro.
   right.
-  apply mem_lookup_simpl_2.
+  apply mem_lookup_simpl_sec.
   eapply sec_post_overapproximates_eval_sec; eauto.
 Qed.
 

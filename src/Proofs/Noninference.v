@@ -17,7 +17,7 @@ Proof.
   - (* const *)
     reflexivity.
   - (* var *)
-    apply pub_not_sec in Hsec.
+    apply lookup_simpl_pub in Hsec.
     specialize (Hagree s Hsec).
     rewrite Hagree. reflexivity.
   - (* binop *)
@@ -42,11 +42,11 @@ Proof.
   intros se se_inv v1 v2 Hjoin Hagree.
   unfold agree_on_public in *. intros x Hpub.
   apply Hagree.
-  apply pub_not_sec.
+  apply lookup_simpl_pub.
   apply join_sec_public_thn with se_inv.
   unfold sec_lookup.
   rewrite Hjoin. 
-  apply pub_not_sec.
+  apply lookup_simpl_pub.
   exact Hpub.
 Qed.
 
@@ -60,11 +60,11 @@ Proof.
   intros se_inv se_body v1 v2 Hjoin Hagree.
   unfold agree_on_public in *. intros x Hpub.
   apply Hagree.
-  apply pub_not_sec.
+  apply lookup_simpl_pub.
   apply join_sec_public_els with se_inv.
   unfold sec_lookup.
   rewrite Hjoin. 
-  apply pub_not_sec in Hpub.
+  apply lookup_simpl_pub in Hpub.
   exact Hpub.
 Qed.
 
@@ -121,7 +121,7 @@ Proof.
       resolve_maps. destruct (param ==v x).
       + subst. destruct (x ==v x); [ | congruence ].
         autorewrite with core in *. apply f_equal.
-        apply pub_not_sec in Hparam.
+        apply lookup_simpl_pub in Hparam.
 
         eapply interp_sec_public_agree; eauto.
         destruct (interp_sec e se).
@@ -197,7 +197,7 @@ Proof.
       split; [exact Htrace |].
       unfold agree_on_public in *. intros x Hpub.
       apply Hmem. (* This Hmem comes from IHHct2, so it uses se_els *)
-      apply pub_not_sec. apply pub_not_sec in Hpub.
+      apply lookup_simpl_pub. apply lookup_simpl_pub in Hpub.
       eapply join_sec_public_thn. 
       unfold sec_lookup.
       rewrite H0.
@@ -216,7 +216,7 @@ Proof.
       (* Memory safety for the joined environment *)
       unfold agree_on_public in *. intros x Hpub.
       apply Hmem.
-      apply pub_not_sec. apply pub_not_sec in Hpub.
+      apply lookup_simpl_pub. apply lookup_simpl_pub in Hpub.
       eapply join_sec_public_els. 
       unfold sec_lookup.
       rewrite H0.
@@ -303,10 +303,10 @@ Lemma agree_on_public_sec_ctx_join_thn : forall se_thn se_els se_join ctx1 ctx2,
 Proof.
   intros se_thn se_els se_join ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - rewrite <- pub_not_sec in Hpub.
+  - rewrite <- lookup_simpl_pub in Hpub.
     unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
     apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
-    apply Hval. rewrite <- pub_not_sec. exact Hthn.
+    apply Hval. rewrite <- lookup_simpl_pub. exact Hthn.
   - unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
     apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
     apply Hdyn. exact Hthn.
@@ -321,10 +321,10 @@ Lemma agree_on_public_sec_ctx_join_els : forall se_thn se_els se_join ctx1 ctx2,
 Proof.
   intros se_thn se_els se_join ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - rewrite <- pub_not_sec in Hpub.
+  - rewrite <- lookup_simpl_pub in Hpub.
     unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
     apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
-    apply Hval. rewrite <- pub_not_sec. exact Hels.
+    apply Hval. rewrite <- lookup_simpl_pub. exact Hels.
   - unfold sec_lookup in Hpub; rewrite <- Hjoin in Hpub.
     apply join_sec_public in Hpub. destruct Hpub as [Hthn Hels].
     apply Hdyn. exact Hels.
@@ -340,7 +340,7 @@ Lemma agree_on_public_sec_ctx_inv : forall se se_inv ctx1 ctx2,
 Proof.
   intros se se_inv ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - apply Hval. rewrite <- pub_not_sec. rewrite <- pub_not_sec in Hpub. eapply join_sec_public_thn. unfold sec_lookup. rewrite Hjoin. exact Hpub.
+  - apply Hval. rewrite <- lookup_simpl_pub. rewrite <- lookup_simpl_pub in Hpub. eapply join_sec_public_thn. unfold sec_lookup. rewrite Hjoin. exact Hpub.
   - apply Hdyn. eapply join_sec_public_thn. unfold sec_lookup. rewrite Hjoin. exact Hpub.
 Qed.
 
@@ -353,7 +353,7 @@ Lemma agree_on_public_sec_ctx_body_inv : forall se_inv se_body ctx1 ctx2,
 Proof.
   intros se_inv se_body ctx1 ctx2 Hjoin [Hval Hdyn].
   split; intros x Hpub.
-  - apply Hval. rewrite <- pub_not_sec. rewrite <- pub_not_sec in Hpub. eapply join_sec_public_els. unfold sec_lookup. rewrite Hjoin. exact Hpub.
+  - apply Hval. rewrite <- lookup_simpl_pub. rewrite <- lookup_simpl_pub in Hpub. eapply join_sec_public_els. unfold sec_lookup. rewrite Hjoin. exact Hpub.
   - apply Hdyn. eapply join_sec_public_els. unfold sec_lookup. rewrite Hjoin. exact Hpub.
 Qed.
 
@@ -426,7 +426,7 @@ Proof.
   [ subst;
     try rewrite lookup_add_eq in Hparam by reflexivity;
     repeat rewrite lookup_add_eq by reflexivity;
-    try rewrite <- pub_not_sec in *;
+    try rewrite <- lookup_simpl_pub in *;
     repeat rewrite lookup_update_sec_eq in *;
     destruct (interp_sec cond se) eqn:Hcond_sec;
     destruct (interp_sec e1 se) eqn:He1_sec;
@@ -445,11 +445,11 @@ Proof.
     end
   | try rewrite lookup_add_ne in Hparam by congruence;
     repeat rewrite lookup_add_ne by congruence;
-    try rewrite <- pub_not_sec in *;
+    try rewrite <- lookup_simpl_pub in *;
     repeat rewrite lookup_update_sec_ne in * by congruence;
     try match goal with
     | |- _ $? ?v = _ $? ?v =>
-        apply Hval_agree; rewrite <- pub_not_sec; exact Hparam
+        apply Hval_agree; rewrite <- lookup_simpl_pub; exact Hparam
     | |- sec_lookup _ ?v = sec_lookup _ ?v =>
         apply Hdyn_agree; exact Hparam
     end ].
@@ -468,16 +468,16 @@ Proof.
   [ subst;
     try rewrite lookup_add_eq in Hparam by reflexivity;
     repeat rewrite lookup_add_eq by reflexivity;
-    try rewrite <- pub_not_sec in *;
+    try rewrite <- lookup_simpl_pub in *;
     repeat rewrite lookup_update_sec_eq in *
   | try rewrite lookup_add_ne in Hparam by congruence;
     repeat rewrite lookup_add_ne by congruence;
-    try rewrite <- pub_not_sec in *;
+    try rewrite <- lookup_simpl_pub in *;
     repeat rewrite lookup_update_sec_ne in * by congruence
   ].
 
   Ltac resolve_senv_mk2 dest1 dest2 Hagree:=
-  intros param Hparam; cbn in *; try rewrite <- pub_not_sec in Hparam;
+  intros param Hparam; cbn in *; try rewrite <- lookup_simpl_pub in Hparam;
   destruct (param ==v dest2); [
     subst; repeat rewrite lookup_senv_mk2_eq2 in *
   | destruct (param ==v dest1); [
@@ -510,7 +510,7 @@ Proof.
     + (* Prove values agree *)
       resolve_sec_update x.
       * apply f_equal. eapply interp_sec_public_agree; eauto.
-      * apply Hval_agree. rewrite <- pub_not_sec. exact Hparam.
+      * apply Hval_agree. rewrite <- lookup_simpl_pub. exact Hparam.
     + (* Prove dynamic labels agree *)
       resolve_sec_update x.
       * eapply interp_sec_dynamic_agree; eauto.
@@ -563,9 +563,9 @@ Proof.
     + (* Valuation agreement for the return variable and caller environment *)
       resolve_sec_update x.
       * assert (Hpub: fv1 $? y1 = fv2 $? y1) by
-        (apply Hbody_val; rewrite pub_not_sec in *; exact Hparam).
+        (apply Hbody_val; rewrite lookup_simpl_pub in *; exact Hparam).
         congruence.
-      * apply Hval_agree. rewrite pub_not_sec in *. exact Hparam.
+      * apply Hval_agree. rewrite lookup_simpl_pub in *. exact Hparam.
     + (* Dynamic label agreement for the return variable and caller environment *)
       resolve_sec_update x.
       * apply Hbody_dyn. exact Hparam.

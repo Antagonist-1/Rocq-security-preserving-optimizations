@@ -189,71 +189,71 @@ Lemma sec_post_secret_bound : forall c se,
 Proof.
   induction c; intros se; simpl.
   - unfold sec_env_sub. intros x Hsecret.
-    apply secret_in_lookup.
+    apply lookup_simpl_sec_2.
     apply VarSet.union_spec. left.
-    apply secret_lookup_in. exact Hsecret.
+    apply lookup_simpl_sec_1. exact Hsecret.
   - unfold sec_env_sub. intros y Hsecret.
     destruct (s ==v y) eqn:Heq.
-    + subst. apply secret_in_lookup.
+    + subst. apply lookup_simpl_sec_2.
       apply VarSet.union_spec. right.
       apply VarSet.add_spec. left. reflexivity.
     + rewrite lookup_update_sec_ne in Hsecret by congruence.
-      apply secret_in_lookup.
+      apply lookup_simpl_sec_2.
       apply VarSet.union_spec. left.
-      apply secret_lookup_in. exact Hsecret.
+      apply lookup_simpl_sec_1. exact Hsecret.
   - unfold sec_env_sub. intros y Hsecret.
     destruct (s ==v y) eqn:Heq.
-    + subst. apply secret_in_lookup.
+    + subst. apply lookup_simpl_sec_2.
       apply VarSet.union_spec. right.
       apply VarSet.add_spec. left. reflexivity.
-    + pose proof (secret_lookup_in (VarSet.add s se) y Hsecret) as Hin_add.
+    + pose proof (lookup_simpl_sec_1 (VarSet.add s se) y Hsecret) as Hin_add.
       rewrite VarSet.add_spec in Hin_add.
       destruct Hin_add as [Heq' | Hin].
       * congruence.
-      * apply secret_in_lookup.
+      * apply lookup_simpl_sec_2.
         apply VarSet.union_spec. left.
         exact Hin.
   - unfold sec_env_sub. intros y Hsecret.
     destruct (s ==v y) eqn:Heq.
-    + subst. apply secret_in_lookup.
+    + subst. apply lookup_simpl_sec_2.
       apply VarSet.union_spec. right.
       apply VarSet.add_spec. left. reflexivity.
     + rewrite lookup_update_sec_ne in Hsecret by congruence.
-      apply secret_in_lookup.
+      apply lookup_simpl_sec_2.
       apply VarSet.union_spec. left.
-      apply secret_lookup_in. exact Hsecret.
+      apply lookup_simpl_sec_1. exact Hsecret.
   - unfold sec_env_sub in *.
     intros x Hsecret.
     pose proof (IHc2 (sec_post c1 se) x Hsecret) as Hstep2.
-    apply secret_lookup_in in Hstep2.
+    apply lookup_simpl_sec_1 in Hstep2.
     rewrite VarSet.union_spec in Hstep2.
     destruct Hstep2 as [Hin_c1 | Hin_c2].
-    + pose proof (IHc1 se x (secret_in_lookup _ _ Hin_c1)) as Hstep1.
-      apply secret_lookup_in in Hstep1.
-      apply secret_in_lookup.
+    + pose proof (IHc1 se x (lookup_simpl_sec_2 _ _ Hin_c1)) as Hstep1.
+      apply lookup_simpl_sec_1 in Hstep1.
+      apply lookup_simpl_sec_2.
       rewrite !VarSet.union_spec in *.
       VarSetDecide.fsetdec.
-    + apply secret_in_lookup.
+    + apply lookup_simpl_sec_2.
       rewrite !VarSet.union_spec in *.
       VarSetDecide.fsetdec.
   - unfold sec_env_sub in *.
     intros x Hsecret.
-    apply secret_lookup_in in Hsecret.
+    apply lookup_simpl_sec_1 in Hsecret.
     rewrite VarSet.union_spec in Hsecret.
     destruct Hsecret as [Hin_thn | Hin_els].
-    + pose proof (IHc1 se x (secret_in_lookup _ _ Hin_thn)) as Hbound.
-      apply secret_lookup_in in Hbound.
-      apply secret_in_lookup.
+    + pose proof (IHc1 se x (lookup_simpl_sec_2 _ _ Hin_thn)) as Hbound.
+      apply lookup_simpl_sec_1 in Hbound.
+      apply lookup_simpl_sec_2.
       rewrite !VarSet.union_spec in *.
       VarSetDecide.fsetdec.
-    + pose proof (IHc2 se x (secret_in_lookup _ _ Hin_els)) as Hbound.
-      apply secret_lookup_in in Hbound.
-      apply secret_in_lookup.
+    + pose proof (IHc2 se x (lookup_simpl_sec_2 _ _ Hin_els)) as Hbound.
+      apply lookup_simpl_sec_1 in Hbound.
+      apply lookup_simpl_sec_2.
       rewrite !VarSet.union_spec in *.
       VarSetDecide.fsetdec.
   - unfold sec_env_sub. intros x Hsecret.
-    apply secret_lookup_in in Hsecret.
-    apply secret_in_lookup.
+    apply lookup_simpl_sec_1 in Hsecret.
+    apply lookup_simpl_sec_2.
     rewrite !VarSet.union_spec in *.
     VarSetDecide.fsetdec.
 Qed.
@@ -300,12 +300,12 @@ Proof.
     eapply sec_env_sub_trans.
     + exact IHHeval2.
     + unfold sec_env_sub. intros x Hsecret.
-      apply secret_lookup_in in Hsecret.
+      apply lookup_simpl_sec_1 in Hsecret.
       rewrite VarSet.union_spec in Hsecret.
       destruct Hsecret as [Hctx' | Hbody].
-      * pose proof (IHHeval1 x (secret_in_lookup _ _ Hctx')) as Hbody_post.
+      * pose proof (IHHeval1 x (lookup_simpl_sec_2 _ _ Hctx')) as Hbody_post.
         exact (sec_post_secret_bound body (sec_of ctx) x Hbody_post).
-      * apply secret_in_lookup.
+      * apply lookup_simpl_sec_2.
         rewrite VarSet.union_spec. right. exact Hbody.
   - apply sec_env_sub_join_left.
 Qed.
