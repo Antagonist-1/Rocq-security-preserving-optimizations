@@ -6,17 +6,18 @@ Require Import Language.Optimizations.Safe.DSE.
 Require Import Proofs.SecLookup.
 Require Import Proofs.Noninference.
 
-
+(* secrets of se1 is a subset of those in se2*)
 Definition sec_env_sub (se1 se2 : sec_env) : Prop :=
   forall x, sec_lookup se1 x = Secret -> sec_lookup se2 x = Secret.
 
-
+(* every sec_env is a subset of itself *)
 Lemma sec_env_sub_refl : forall se,
   sec_env_sub se se.
 Proof.
   unfold sec_env_sub. auto.
 Qed.
 
+(* sec_env subset is transitive *)
 Lemma sec_env_sub_trans : forall se1 se2 se3,
   sec_env_sub se1 se2 ->
   sec_env_sub se2 se3 ->
@@ -26,6 +27,7 @@ Proof.
   apply H23, H12, Hx.
 Qed.
 
+(* the left element of a join is a subset of the join *)
 Lemma sec_env_sub_join_left : forall se1 se2,
   sec_env_sub se1 (join_sec_env se1 se2).
 Proof.
@@ -35,6 +37,7 @@ Proof.
   destruct (sec_lookup se2 x); reflexivity.
 Qed.
 
+(* the right element of a join is a subset of the join *)
 Lemma sec_env_sub_join_right : forall se1 se2,
   sec_env_sub se2 (join_sec_env se1 se2).
 Proof.
@@ -44,6 +47,7 @@ Proof.
   destruct (sec_lookup se1 x); reflexivity.
 Qed.
 
+(* join preserves subset on both sides *)
 Lemma sec_env_sub_join_compat : forall se1 se1' se2 se2',
   sec_env_sub se1 se1' ->
   sec_env_sub se2 se2' ->
@@ -51,7 +55,7 @@ Lemma sec_env_sub_join_compat : forall se1 se1' se2 se2',
 Proof.
   unfold sec_env_sub.
   intros se1 se1' se2 se2' Hleft Hright x Hsecret.
-  rewrite !lookup_join_env in *.
+  rewrite lookup_join_env in *.
   destruct (sec_lookup se1 x) eqn:H1;
     destruct (sec_lookup se2 x) eqn:H2;
     cbn in Hsecret; try discriminate.
@@ -60,6 +64,7 @@ Proof.
   - rewrite (Hleft x H1). rewrite (Hright x H2). reflexivity.
 Qed.
 
+(* updating both envs at the same variable preserves subset if the level update does *)
 Lemma sec_env_sub_update : forall se1 se2 x level1 level2,
   sec_env_sub se1 se2 ->
   (level1 = Secret -> level2 = Secret) ->
@@ -76,6 +81,7 @@ Proof.
     apply Hsub. exact Hsecret.
 Qed.
 
+(* if an expr is Secret under a smaller env, it stays Secret under any larger env *)
 Lemma interp_sec_secret_monotone : forall e se1 se2,
   sec_env_sub se1 se2 ->
   interp_sec e se1 = Secret ->
@@ -93,6 +99,7 @@ Proof.
     + rewrite (IHe1 se1 se2 Hsub He1). reflexivity.
 Qed.
 
+(* security level is monotone under sec_env subset for Secret. used for Cmov *)
 Lemma cmov_level_secret_monotone : forall cond e1 e2 se1 se2,
   sec_env_sub se1 se2 ->
   join_sec (interp_sec cond se1)
@@ -121,11 +128,8 @@ Proof.
     rewrite Hcond'. reflexivity.
 Qed.
 
-(* ================================================================= *)
-(* Public-side duals: derive Public-in-actual from Public-in-static   *)
-(* under sec_env_sub se_actual se_static.                             *)
-(* ================================================================= *)
 
+(* a variable Public in the larger env is also Public in the smaller env *)
 Lemma sec_env_sub_public : forall se_actual se_static x,
   sec_env_sub se_actual se_static ->
   sec_lookup se_static x = Public ->
@@ -137,6 +141,7 @@ Proof.
   congruence.
 Qed.
 
+(* an Public expression under a larger env is also Public under the smaller env *)
 Lemma interp_sec_public_under_sub : forall e se_actual se_static,
   sec_env_sub se_actual se_static ->
   interp_sec e se_static = Public ->
@@ -148,6 +153,7 @@ Proof.
   congruence.
 Qed.
 
+(* a Cmov Public under a larger env is also Public under the smaller env *)
 Lemma cmov_level_public_under_sub : forall cond e1 e2 se_actual se_static,
   sec_env_sub se_actual se_static ->
   join_sec (interp_sec cond se_static)
@@ -162,6 +168,7 @@ Proof.
   congruence.
 Qed.
 
+(* sec_post preserves sec_env subsets *)
 Lemma sec_post_monotone : forall c se1 se2,
   sec_env_sub se1 se2 ->
   sec_env_sub (sec_post c se1) (sec_post c se2).
@@ -184,6 +191,7 @@ Proof.
     apply sec_env_sub_join_compat; auto using sec_env_sub_refl.
 Qed.
 
+(* sec_post only adds Secrets from variables touched by the command *)
 Lemma sec_post_secret_bound : forall c se,
   sec_env_sub (sec_post c se) (VarSet.union se (vars_in_cmd c)).
 Proof.
@@ -231,10 +239,10 @@ Proof.
     + pose proof (IHc1 se x (lookup_simpl_sec_2 _ _ Hin_c1)) as Hstep1.
       apply lookup_simpl_sec_1 in Hstep1.
       apply lookup_simpl_sec_2.
-      rewrite !VarSet.union_spec in *.
+      rewrite VarSet.union_spec in *.
       VarSetDecide.fsetdec.
     + apply lookup_simpl_sec_2.
-      rewrite !VarSet.union_spec in *.
+      rewrite VarSet.union_spec in *.
       VarSetDecide.fsetdec.
   - unfold sec_env_sub in *.
     intros x Hsecret.
@@ -244,20 +252,21 @@ Proof.
     + pose proof (IHc1 se x (lookup_simpl_sec_2 _ _ Hin_thn)) as Hbound.
       apply lookup_simpl_sec_1 in Hbound.
       apply lookup_simpl_sec_2.
-      rewrite !VarSet.union_spec in *.
+      rewrite VarSet.union_spec in *.
       VarSetDecide.fsetdec.
     + pose proof (IHc2 se x (lookup_simpl_sec_2 _ _ Hin_els)) as Hbound.
       apply lookup_simpl_sec_1 in Hbound.
       apply lookup_simpl_sec_2.
-      rewrite !VarSet.union_spec in *.
+      rewrite VarSet.union_spec in *.
       VarSetDecide.fsetdec.
   - unfold sec_env_sub. intros x Hsecret.
     apply lookup_simpl_sec_1 in Hsecret.
     apply lookup_simpl_sec_2.
-    rewrite !VarSet.union_spec in *.
+    rewrite VarSet.union_spec in *.
     VarSetDecide.fsetdec.
 Qed.
 
+(* the static sec_post overapproximates the dynamic sec_env after evaluation *)
 Theorem sec_post_overapproximates_eval_sec_subset : forall phi ctx c ctx',
   eval_sec phi ctx c ctx' ->
   sec_env_sub (sec_of ctx') (sec_post c (sec_of ctx)).
@@ -310,6 +319,7 @@ Proof.
   - apply sec_env_sub_join_left.
 Qed.
 
+(* pointwise version: any Secret variable after eval is also Secret in sec_post *)
 Corollary sec_post_overapproximates_eval_sec : forall phi ctx c ctx' x,
   eval_sec phi ctx c ctx' ->
   sec_lookup (sec_of ctx') x = Secret ->

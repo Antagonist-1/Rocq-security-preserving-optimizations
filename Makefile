@@ -28,6 +28,7 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/unsafe_DSE/NotSecure.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/EvalEquivalence.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/Noninference.v
+	$(ROCQC) $(ROCQFLAGS) src/Proofs/NoninferenceSec.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecEnvSubtyping.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/Defs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/safe_DSE/SecretPreservation.v
