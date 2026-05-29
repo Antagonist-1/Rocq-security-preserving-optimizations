@@ -171,9 +171,6 @@ Proof.
   - eapply sec_env_sub_update; [exact Hsub |].
     intro Hlevel.
     eapply interp_sec_secret_monotone; eauto.
-  - change (sec_env_sub (update_sec se1 s Secret) (update_sec se2 s Secret)).
-    eapply sec_env_sub_update; [exact Hsub |].
-    intros _. reflexivity.
   - eapply sec_env_sub_update; [exact Hsub |].
     intro Hlevel.
     eapply cmov_level_secret_monotone; eauto.
@@ -201,18 +198,6 @@ Proof.
       apply secret_in_lookup.
       apply VarSet.union_spec. left.
       apply secret_lookup_in. exact Hsecret.
-  - unfold sec_env_sub. intros y Hsecret.
-    destruct (s ==v y) eqn:Heq.
-    + subst. apply secret_in_lookup.
-      apply VarSet.union_spec. right.
-      apply VarSet.add_spec. left. reflexivity.
-    + pose proof (secret_lookup_in (VarSet.add s se) y Hsecret) as Hin_add.
-      rewrite VarSet.add_spec in Hin_add.
-      destruct Hin_add as [Heq' | Hin].
-      * congruence.
-      * apply secret_in_lookup.
-        apply VarSet.union_spec. left.
-        exact Hin.
   - unfold sec_env_sub. intros y Hsecret.
     destruct (s ==v y) eqn:Heq.
     + subst. apply secret_in_lookup.
@@ -258,11 +243,11 @@ Proof.
     VarSetDecide.fsetdec.
 Qed.
 
-Theorem sec_post_overapproximates_eval_sec_subset : forall phi ctx c ctx',
-  eval_sec phi ctx c ctx' ->
+Theorem sec_post_overapproximates_eval_sec_subset : forall ctx c ctx',
+  eval_sec ctx c ctx' ->
   sec_env_sub (sec_of ctx') (sec_post c (sec_of ctx)).
 Proof.
-  intros phi ctx c ctx' Heval.
+  intros ctx c ctx' Heval.
   induction Heval; simpl.
   - apply sec_env_sub_refl.
   - unfold sec_env_sub. intros y Hsecret.
@@ -277,13 +262,6 @@ Proof.
     cbn in *.
     rewrite H2.
     exact Hsecret.
-  - unfold sec_env_sub. intros z Hsecret.
-    cbn in *.
-    destruct (x ==v z) eqn:Heq.
-    + subst. unfold sec_lookup. rewrite VarSetEqProps.add_mem_1. reflexivity.
-    + rewrite lookup_update_sec_ne in Hsecret by congruence.
-      unfold sec_lookup. rewrite VarSetEqProps.add_mem_2 by congruence.
-      exact Hsecret.
   - eapply sec_env_sub_trans.
     + exact IHHeval2.
     + apply sec_post_monotone.
@@ -310,11 +288,11 @@ Proof.
   - apply sec_env_sub_join_left.
 Qed.
 
-Corollary sec_post_overapproximates_eval_sec : forall phi ctx c ctx' x,
-  eval_sec phi ctx c ctx' ->
+Corollary sec_post_overapproximates_eval_sec : forall ctx c ctx' x,
+  eval_sec ctx c ctx' ->
   sec_lookup (sec_of ctx') x = Secret ->
   sec_lookup (sec_post c (sec_of ctx)) x = Secret.
 Proof.
-  intros phi ctx c ctx' x Heval Hsecret.
+  intros ctx c ctx' x Heval Hsecret.
   eapply sec_post_overapproximates_eval_sec_subset; eauto.
 Qed.

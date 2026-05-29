@@ -7,9 +7,9 @@ Require Import Language.Optimizations.Safe.Unskip.
 Create HintDb unskip_db.
 Hint Constructors eval eval_trace eval_sec : unskip_db.
 
-Lemma opt_unskip_sound: forall phi c v v',
-  eval phi v c v' ->
-  eval phi v (opt_unskip_cmd c) v'.
+Lemma opt_unskip_sound: forall c v v',
+  eval v c v' ->
+  eval v (opt_unskip_cmd c) v'.
 Proof.
     induction 1; simpl; intros; eauto with unskip_db.
     all: repeat match goal with

@@ -112,12 +112,12 @@ Proof.
     apply while_fixpoint_contains_out.
 Qed.
 
-Lemma agree_on_protected_out_implies_agree_on_secret : forall phi ctx c out ctx' v_opt,
-  eval_sec phi ctx c ctx' ->
+Lemma agree_on_protected_out_implies_agree_on_secret : forall ctx c out ctx' v_opt,
+  eval_sec ctx c ctx' ->
   agree_on (VarSet.union out (sec_post c (sec_of ctx))) (sec_val_of ctx') v_opt ->
   agree_on_secret (sec_of ctx') (sec_val_of ctx') v_opt.
 Proof.
-  intros phi ctx c out ctx' v_opt Heval Hagree.
+  intros ctx c out ctx' v_opt Heval Hagree.
   unfold agree_on_secret.
   intros x Hsecret.
   apply Hagree.
@@ -128,27 +128,27 @@ Proof.
   eapply sec_post_overapproximates_eval_sec; eauto.
 Qed.
 
-Lemma eval_sec_liveness_coincidence_skip : forall phi out ctx1 ctx2,
+Lemma eval_sec_liveness_coincidence_skip : forall out ctx1 ctx2,
   sec_liveness_hyp Skip out ctx1 ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 Skip ctx2_out /\
+    eval_sec ctx2 Skip ctx2_out /\
     sec_coincide out ctx1 ctx2_out.
 Proof.
-  intros phi out ctx1 ctx2 [Hsec [Htrace Hagree]].
+  intros out ctx1 ctx2 [Hsec [Htrace Hagree]].
   exists ctx2.
   split; [constructor|].
   constructor; assumption.
 Qed.
 
-Lemma eval_sec_liveness_coincidence_assign : forall phi out ctx x e a level ctx2,
+Lemma eval_sec_liveness_coincidence_assign : forall out ctx x e a level ctx2,
   interp_arith e (sec_val_of ctx) = a ->
   interp_sec e (sec_of ctx) = level ->
   sec_liveness_hyp (Assign x e) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (Assign x e) ctx2_out /\
+    eval_sec ctx2 (Assign x e) ctx2_out /\
     sec_coincide out ((ctx sv$+ (x, a)) s$+ (x, level)) ctx2_out.
 Proof.
-  intros phi out ctx x e a level ctx2 Heval Hlevel [Hsec [Htrace Hagree]].
+  intros out ctx x e a level ctx2 Heval Hlevel [Hsec [Htrace Hagree]].
   simpl in Hagree.
   destruct (VarSet.mem x out) eqn:Hx.
   - assert (Ha : interp_arith e (sec_val_of ctx2) = a).
@@ -180,7 +180,7 @@ Proof.
 Qed.
 
 Lemma eval_sec_liveness_coincidence_cmov_true :
-  forall phi out ctx x cond e1 e2 c a1 a2 level ctx2,
+  forall out ctx x cond e1 e2 c a1 a2 level ctx2,
   interp_arith cond (sec_val_of ctx) = c ->
   c <> 0 ->
   interp_arith e1 (sec_val_of ctx) = a1 ->
@@ -189,10 +189,10 @@ Lemma eval_sec_liveness_coincidence_cmov_true :
     (join_sec (interp_sec e1 (sec_of ctx)) (interp_sec e2 (sec_of ctx))) = level ->
   sec_liveness_hyp (Cmov x cond e1 e2) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (Cmov x cond e1 e2) ctx2_out /\
+    eval_sec ctx2 (Cmov x cond e1 e2) ctx2_out /\
     sec_coincide out ((ctx sv$+ (x, a1)) s$+ (x, level)) ctx2_out.
 Proof.
-  intros phi out ctx x cond e1 e2 c a1 a2 level ctx2
+  intros out ctx x cond e1 e2 c a1 a2 level ctx2
     Hcond_src Hnz He1 He2 Hlevel [Hsec [Htrace Hagree]].
   simpl in Hagree.
   destruct (VarSet.mem x out) eqn:Hx.
@@ -247,7 +247,7 @@ Proof.
 Qed.
 
 Lemma eval_sec_liveness_coincidence_cmov_false :
-  forall phi out ctx x cond e1 e2 a1 a2 level ctx2,
+  forall out ctx x cond e1 e2 a1 a2 level ctx2,
   interp_arith cond (sec_val_of ctx) = 0 ->
   interp_arith e1 (sec_val_of ctx) = a1 ->
   interp_arith e2 (sec_val_of ctx) = a2 ->
@@ -255,10 +255,10 @@ Lemma eval_sec_liveness_coincidence_cmov_false :
     (join_sec (interp_sec e1 (sec_of ctx)) (interp_sec e2 (sec_of ctx))) = level ->
   sec_liveness_hyp (Cmov x cond e1 e2) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (Cmov x cond e1 e2) ctx2_out /\
+    eval_sec ctx2 (Cmov x cond e1 e2) ctx2_out /\
     sec_coincide out ((ctx sv$+ (x, a2)) s$+ (x, level)) ctx2_out.
 Proof.
-  intros phi out ctx x cond e1 e2 a1 a2 level ctx2
+  intros out ctx x cond e1 e2 a1 a2 level ctx2
     Hcond_src He1 He2 Hlevel [Hsec [Htrace Hagree]].
   simpl in Hagree.
   destruct (VarSet.mem x out) eqn:Hx.
@@ -312,75 +312,24 @@ Proof.
         -- apply agree_on_dead_update_both; auto.
 Qed.
 
-Lemma eval_sec_liveness_coincidence_assign_call :
-  forall phi out x f e1 e2 x1 x2 y body a1 a2 level1 level2 ctx ctx' a level ctx2,
-  phi $? f = Some ((x1, x2), y, body) ->
-  interp_arith e1 (sec_val_of ctx) = a1 ->
-  interp_arith e2 (sec_val_of ctx) = a2 ->
-  interp_sec e1 (sec_of ctx) = level1 ->
-  interp_sec e2 (sec_of ctx) = level2 ->
-  eval_sec phi (($0 $+ (x1, a1) $+ (x2, a2)), senv_mk2 x1 x2 level1 level2, sec_trace_of ctx) body ctx' ->
-  sec_val_of ctx' $? y = Some a ->
-  sec_lookup (sec_of ctx') y = level ->
-  sec_liveness_hyp (AssignCall x f e1 e2) out ctx ctx2 ->
-  exists ctx2_out,
-    eval_sec phi ctx2 (AssignCall x f e1 e2) ctx2_out /\
-    sec_coincide out ((sec_val_of ctx $+ (x, a)), update_sec (sec_of ctx) x level, sec_trace_of ctx') ctx2_out.
-Proof.
-  intros phi out x f e1 e2 x1 x2 y body a1 a2 level1 level2 ctx ctx' a level ctx2
-    Hfun He1 He2 Hl1_src Hl2_src Hbody Hy Hylevel [Hsec [Htrace Hagree]].
-  simpl in Hagree.
-  assert (Ha1 : interp_arith e1 (sec_val_of ctx2) = a1).
-  { solve_interp_from_agree He1 Hagree. }
-  assert (Ha2 : interp_arith e2 (sec_val_of ctx2) = a2).
-  { solve_interp_from_agree He2 Hagree. }
-  assert (Hl1 : interp_sec e1 (sec_of ctx2) = level1).
-  {
-    rewrite <- Hl1_src.
-    symmetry.
-    apply interp_sec_lookup_agree.
-    exact Hsec.
-  }
-  assert (Hl2 : interp_sec e2 (sec_of ctx2) = level2).
-  {
-    rewrite <- Hl2_src.
-    symmetry.
-    apply interp_sec_lookup_agree.
-    exact Hsec.
-  }
-  exists ((sec_val_of ctx2 $+ (x, a), update_sec (sec_of ctx2) x level, sec_trace_of ctx')).
-  split.
-  - eapply EvalSecAssignCall with (x1 := x1) (x2 := x2) (y := y) (body := body)
-      (a1 := a1) (a2 := a2) (level1 := level1) (level2 := level2) (ctx' := ctx'); eauto.
-    rewrite <- Htrace.
-    exact Hbody.
-  - constructor.
-    + intro z. simpl.
-      apply sec_lookup_update_agree; auto.
-    + reflexivity.
-    + apply agree_on_remove_add.
-      eapply agree_on_subset; [| exact Hagree].
-      VarSetDecide.fsetdec.
-Qed.
-
 Lemma eval_sec_liveness_coincidence_sequence :
-  forall phi out ctx c1 ctx1 c2 ctx1_out ctx2,
+  forall out ctx c1 ctx1 c2 ctx1_out ctx2,
   (forall out ctx2,
     sec_liveness_hyp c1 out ctx ctx2 ->
     exists ctx2_out,
-      eval_sec phi ctx2 c1 ctx2_out /\
+      eval_sec ctx2 c1 ctx2_out /\
       sec_coincide out ctx1 ctx2_out) ->
   (forall out ctx2,
     sec_liveness_hyp c2 out ctx1 ctx2 ->
     exists ctx2_out,
-      eval_sec phi ctx2 c2 ctx2_out /\
+      eval_sec ctx2 c2 ctx2_out /\
       sec_coincide out ctx1_out ctx2_out) ->
   sec_liveness_hyp (Sequence c1 c2) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (Sequence c1 c2) ctx2_out /\
+    eval_sec ctx2 (Sequence c1 c2) ctx2_out /\
     sec_coincide out ctx1_out ctx2_out.
 Proof.
-  intros phi out ctx c1 ctx1 c2 ctx1_out ctx2 IHc1 IHc2 Hhyp.
+  intros out ctx c1 ctx1 c2 ctx1_out ctx2 IHc1 IHc2 Hhyp.
   destruct (IHc1 (liveness c2 out) ctx2
     (sec_liveness_hyp_sequence_left c1 c2 out ctx ctx2 Hhyp))
     as [ctx2_mid [Heval1 Hcoin1]].
@@ -391,20 +340,20 @@ Proof.
 Qed.
 
 Lemma eval_sec_liveness_coincidence_if_true :
-  forall phi out ctx e thn els ctx1_out c ctx2,
+  forall out ctx e thn els ctx1_out c ctx2,
   interp_arith e (sec_val_of ctx) = c ->
   c <> 0 ->
   (forall out ctx2,
     sec_liveness_hyp thn out (ctx st++ Branch true) ctx2 ->
     exists ctx2_out,
-      eval_sec phi ctx2 thn ctx2_out /\
+      eval_sec ctx2 thn ctx2_out /\
       sec_coincide out ctx1_out ctx2_out) ->
   sec_liveness_hyp (If e thn els) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (If e thn els) ctx2_out /\
+    eval_sec ctx2 (If e thn els) ctx2_out /\
     sec_coincide out ctx1_out ctx2_out.
 Proof.
-  intros phi out ctx e thn els ctx1_out c ctx2 Hcond_src Hnz IHthn Hhyp.
+  intros out ctx e thn els ctx1_out c ctx2 Hcond_src Hnz IHthn Hhyp.
   assert (Hhyp_copy := Hhyp).
   destruct Hhyp_copy as [Hsec [Htrace Hagree]].
   simpl in Hagree.
@@ -417,19 +366,19 @@ Proof.
 Qed.
 
 Lemma eval_sec_liveness_coincidence_if_false :
-  forall phi out ctx e thn els ctx1_out ctx2,
+  forall out ctx e thn els ctx1_out ctx2,
   interp_arith e (sec_val_of ctx) = 0 ->
   (forall out ctx2,
     sec_liveness_hyp els out (ctx st++ Branch false) ctx2 ->
     exists ctx2_out,
-      eval_sec phi ctx2 els ctx2_out /\
+      eval_sec ctx2 els ctx2_out /\
       sec_coincide out ctx1_out ctx2_out) ->
   sec_liveness_hyp (If e thn els) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (If e thn els) ctx2_out /\
+    eval_sec ctx2 (If e thn els) ctx2_out /\
     sec_coincide out ctx1_out ctx2_out.
 Proof.
-  intros phi out ctx e thn els ctx1_out ctx2 Hcond_src IHels Hhyp.
+  intros out ctx e thn els ctx1_out ctx2 Hcond_src IHels Hhyp.
   assert (Hhyp_copy := Hhyp).
   destruct Hhyp_copy as [Hsec [Htrace Hagree]].
   simpl in Hagree.
@@ -442,25 +391,25 @@ Proof.
 Qed.
 
 Lemma eval_sec_liveness_coincidence_while_true :
-  forall phi out ctx e body ctx' ctx1_out c ctx2,
+  forall out ctx e body ctx' ctx1_out c ctx2,
   interp_arith e (sec_val_of ctx) = c ->
   c <> 0 ->
   (forall out ctx2,
     sec_liveness_hyp body out (ctx st++ Branch true) ctx2 ->
     exists ctx2_out,
-      eval_sec phi ctx2 body ctx2_out /\
+      eval_sec ctx2 body ctx2_out /\
       sec_coincide out ctx' ctx2_out) ->
   (forall out ctx2,
     sec_liveness_hyp (While e body) out ctx' ctx2 ->
     exists ctx2_out,
-      eval_sec phi ctx2 (While e body) ctx2_out /\
+      eval_sec ctx2 (While e body) ctx2_out /\
       sec_coincide out ctx1_out ctx2_out) ->
   sec_liveness_hyp (While e body) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (While e body) ctx2_out /\
+    eval_sec ctx2 (While e body) ctx2_out /\
     sec_coincide out ctx1_out ctx2_out.
 Proof.
-  intros phi out ctx e body ctx' ctx1_out c ctx2 Hcond_src Hnz IHbody IHwhile Hhyp.
+  intros out ctx e body ctx' ctx1_out c ctx2 Hcond_src Hnz IHbody IHwhile Hhyp.
   assert (Hhyp_copy := Hhyp).
   destruct Hhyp_copy as [Hsec [Htrace Hagree]].
   simpl in Hagree.
@@ -481,14 +430,14 @@ Proof.
 Qed.
 
 Lemma eval_sec_liveness_coincidence_while_false :
-  forall phi out ctx e body ctx2,
+  forall out ctx e body ctx2,
   interp_arith e (sec_val_of ctx) = 0 ->
   sec_liveness_hyp (While e body) out ctx ctx2 ->
   exists ctx2_out,
-    eval_sec phi ctx2 (While e body) ctx2_out /\
+    eval_sec ctx2 (While e body) ctx2_out /\
     sec_coincide out (ctx st++ Branch false) ctx2_out.
 Proof.
-  intros phi out ctx e body ctx2 Hcond_src Hhyp.
+  intros out ctx e body ctx2 Hcond_src Hhyp.
   pose proof (sec_liveness_hyp_while_exit_coincide e body out ctx ctx2 Hhyp) as Hcoin.
   destruct Hhyp as [_ [_ Hagree]].
   simpl in Hagree.
@@ -502,16 +451,16 @@ Proof.
   - exact Hcoin.
 Qed.
 
-Lemma eval_sec_liveness_coincidence : forall phi c out ctx1 ctx2 ctx1_out,
-  eval_sec phi ctx1 c ctx1_out ->
+Lemma eval_sec_liveness_coincidence : forall c out ctx1 ctx2 ctx1_out,
+  eval_sec ctx1 c ctx1_out ->
   (forall x, sec_lookup (sec_of ctx1) x = sec_lookup (sec_of ctx2) x) ->
   sec_trace_of ctx1 = sec_trace_of ctx2 ->
   agree_on (liveness c out) (sec_val_of ctx1) (sec_val_of ctx2) ->
   exists ctx2_out,
-    eval_sec phi ctx2 c ctx2_out /\
+    eval_sec ctx2 c ctx2_out /\
     sec_coincide out ctx1_out ctx2_out.
 Proof.
-  intros phi c out ctx1 ctx2 ctx1_out Heval Hsec Htrace Hagree.
+  intros c out ctx1 ctx2 ctx1_out Heval Hsec Htrace Hagree.
   revert out ctx2 Hsec Htrace Hagree.
   dependent induction Heval; intros.
   - eapply eval_sec_liveness_coincidence_skip.
@@ -521,8 +470,6 @@ Proof.
   - eapply eval_sec_liveness_coincidence_cmov_true; eauto.
     repeat split; eauto.
   - eapply eval_sec_liveness_coincidence_cmov_false; eauto.
-    repeat split; eauto.
-  - eapply eval_sec_liveness_coincidence_assign_call; eauto.
     repeat split; eauto.
   - eapply eval_sec_liveness_coincidence_sequence.
     + intros out' ctx2' [Hsec' [Htrace' Hagree']].
@@ -550,17 +497,16 @@ Qed.
 
 (* Any evaluation of the optimized program can be matched to an evaluation of the original program
    that have : 1. same sec. labels, 2. same trace, 3. agree on the out variables. *)
-Lemma safe_dse_helper_sec_complete : forall phi c out secrets ctx ctx_opt,
+Lemma safe_dse_helper_sec_complete : forall c out secrets ctx ctx_opt,
   sec_env_sub (sec_of ctx) secrets ->
-  eval_sec phi ctx (safe_dse_helper c out secrets) ctx_opt ->
+  eval_sec ctx (safe_dse_helper c out secrets) ctx_opt ->
   exists ctx_src,
-    eval_sec phi ctx c ctx_src /\
+    eval_sec ctx c ctx_src /\
     sec_coincide out ctx_src ctx_opt.
 Proof.
-  intros phi c.
+  intros c.
   induction c as
       [| x e
-       | x f e1 e2
        | x cond e1 e2
        | c1 IHc1 c2 IHc2
        | e thn IHthn els IHels
@@ -585,7 +531,6 @@ Proof.
       * finish_sec_same Hopt.
       * finish_sec_same Hopt.
       * finish_sec_same Hopt.
-  - finish_sec_same Hopt.
   - destruct (VarSet.mem x out) eqn:Hout.
     + finish_sec_same Hopt.
     + destruct (sec_lookup secrets x) eqn:Hsecret;
@@ -633,7 +578,7 @@ Proof.
     specialize (IHc2 out (sec_post c1 secrets) ctx1 ctx_opt Hsub2 H4).
     destruct IHc2 as [ctx2_src_from_opt [Heval2_src_from_opt Hcoin2]].
     destruct Hcoin2 as [Hsec_eq2 Htrace_eq2 Hagree2].
-    pose proof (eval_sec_liveness_coincidence phi c2 out ctx1 ctx1_src ctx2_src_from_opt
+    pose proof (eval_sec_liveness_coincidence c2 out ctx1 ctx1_src ctx2_src_from_opt
       Heval2_src_from_opt
       (fun y => eq_sym (Hsec_eq1 y))
       (eq_sym Htrace_eq1)
@@ -664,20 +609,20 @@ Lemma opt_safe_dse_core_keeps_secrets_secret :
   opt_keeps_secrets_secret opt_safe_dse_core.
 Proof.
   unfold opt_keeps_secrets_secret, opt_safe_dse_core.
-  intros sctx sctx' sctx'' pgm pgm' phi Hopt Hsrc Hopt_eval x.
+  intros sctx sctx' sctx'' pgm pgm' Hopt Hsrc Hopt_eval x.
   destruct pgm as [c out].
   destruct pgm' as [c' out'].
   simpl in Hopt.
   inversion Hopt; subst; clear Hopt.
   simpl in Hopt_eval.
-  pose proof (safe_dse_helper_sec_complete phi c
+  pose proof (safe_dse_helper_sec_complete c
     (VarSet.union out' (sec_post c (sec_of sctx)))
     (sec_of sctx) sctx sctx''
     (sec_env_sub_refl (sec_of sctx))
     Hopt_eval) as Hcomplete.
   destruct Hcomplete as [ctx_src [Hsrc_from_opt Hcoin_out]].
   destruct Hcoin_out as [Hsec_eq _ Hagree_out].
-  pose proof (eval_sec_deterministic phi c sctx sctx' ctx_src Hsrc Hsrc_from_opt) as Hsame.
+  pose proof (eval_sec_deterministic c sctx sctx' ctx_src Hsrc Hsrc_from_opt) as Hsame.
   subst ctx_src.
   split.
   - apply Hsec_eq.

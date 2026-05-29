@@ -9,14 +9,14 @@ Require Import Proofs.unskip.Soundness.
 Require Import Proofs.VarSetAgreement.
 
 
-Lemma dse_helper_sound: forall phi c out v1 v2 v1',
+Lemma dse_helper_sound: forall c out v1 v2 v1',
   agree_on (liveness c out) v1 v2 ->
-  eval phi v1 c v1' ->
+  eval v1 c v1' ->
   exists v2',
-    eval phi v2 (dse_helper c out) v2' /\
+    eval v2 (dse_helper c out) v2' /\
     agree_on out v1' v2'.
 Proof.
-  intros phi c out v1 v2 v1' H_agree H. revert out v2 H_agree.
+  intros c out v1 v2 v1' H_agree H. revert out v2 H_agree.
   induction H; intros out v_2 H_agree.
 
   - exists v_2. split; [constructor | exact H_agree].
@@ -60,22 +60,6 @@ Proof.
       * eapply agree_on_written_update; exact H_agree.
     + exists v_2. split; [constructor|].
       eapply agree_on_dead_update_left; eauto.
-
-  - simpl in *.
-    assert (Ha1: interp_arith e1 v_2 = a1).
-    { rewrite <- H0. apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact H_agree]. VarSetDecide.fsetdec. }
-    assert (Ha2: interp_arith e2 v_2 = a2).
-    { rewrite <- H1. apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact H_agree]. VarSetDecide.fsetdec. }
-    exists (v_2 $+ (x, a)). split.
-    + eapply EvalAssignCall; [exact H | simpl; exact Ha1 | simpl; exact Ha2 | exact H2 | exact H3].
-    + unfold agree_on. intros y0 Hy0.
-      destruct (vsp.FM.eq_dec x y0).
-      * subst. simpl. repeat (rewrite lookup_add_eq; [| reflexivity]). reflexivity.
-      * simpl. repeat (rewrite lookup_add_ne; [| auto]).
-        apply H_agree. apply VarSet.mem_spec, VarSet.union_spec. left.
-        apply VarSet.remove_spec. split; [apply VarSet.mem_spec; exact Hy0 | apply not_eq_sym; exact n].
 
   - simpl in *.
     destruct (IHeval1 (liveness c2 out) v_2 H_agree) as [v_mid2 [H_mid2 H_agree_mid]].
@@ -123,21 +107,21 @@ Qed.
 Create HintDb eval_db.
 Hint Constructors eval eval_trace eval_sec : eval_db.
 
-Theorem opt_dse_sound: forall phi (pgm: program) v v',
-  eval phi v (cmd_of pgm) v' ->
+Theorem opt_dse_sound: forall (pgm: program) v v',
+  eval v (cmd_of pgm) v' ->
   exists v_opt,
-    eval phi v (cmd_of (opt_dse pgm)) v_opt /\
+    eval v (cmd_of (opt_dse pgm)) v_opt /\
     agree_on (output_of pgm) v' v_opt.
 Proof.
-  intros phi pgm v v' Heval.
+  intros pgm v v' Heval.
   unfold opt_dse.
   assert (H_dse: exists v_dse,
-    eval phi v (dse_helper (cmd_of pgm) (output_of pgm)) v_dse /\
+    eval v (dse_helper (cmd_of pgm) (output_of pgm)) v_dse /\
     agree_on (output_of pgm) v' v_dse).
   {
     destruct pgm.
     simpl.
-    specialize (dse_helper_sound phi c v0 v v v'). simpl. intro.
+    specialize (dse_helper_sound c v0 v v v'). simpl. intro.
     eapply H.
     - apply agree_on_refl.
     - apply Heval.

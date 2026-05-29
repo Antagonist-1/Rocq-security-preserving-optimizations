@@ -68,15 +68,15 @@ Proof.
   exact Hpub.
 Qed.
 
-Lemma cmov_non_inference : forall phi se x cond e1 e2 level,
+Lemma cmov_non_inference : forall se x cond e1 e2 level,
   join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
-  non_inference phi se (Cmov x cond e1 e2) (update_sec se x level).
+  non_inference se (Cmov x cond e1 e2) (update_sec se x level).
 Proof.
   unfold non_inference.
   Ltac resolve_cmov_maps :=
     unfold agree_on_public, sec_lookup in *; intros param Hparam;
     autorewrite with core in *; cbn in *.
-  intros phi se x cond e1 e2 level Hjoin
+  intros se x cond e1 e2 level Hjoin
     v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
   split.
   { inversion Heval1; inversion Heval2; subst; reflexivity. }
@@ -98,9 +98,9 @@ Qed.
 
 (* A program that is constant time according to our definition should satisfy
 non-inference. *)
-Theorem ct_cmd_soundness : forall phi se c se_out,
-  ct_cmd phi se c se_out ->
-  non_inference phi se c se_out.
+Theorem ct_cmd_soundness : forall se c se_out,
+  ct_cmd se c se_out ->
+  non_inference se c se_out.
 Proof.
   Ltac invert_evals :=
     inversion Heval1; inversion Heval2; subst.
@@ -110,7 +110,7 @@ Proof.
     autorewrite with core in *; cbn in *.
 
 
-  intros phi se c se_out Hct.
+  intros se c se_out Hct.
   unfold non_inference.
   induction Hct;
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
@@ -131,7 +131,6 @@ Proof.
           rewrite VarSetEqProps.add_mem_1 in Hparam.
           discriminate.
 
- 
       + destruct (x ==v param); [ congruence | ].
         autorewrite with core in *. apply Hagree.
         destruct (interp_sec e se) eqn:Hinterp_e; simpl in Hparam.
@@ -141,48 +140,6 @@ Proof.
           auto.
   - (* Cmov *)
     eapply cmov_non_inference; eauto.
-  - (* AssignCall*)
-    (* Unify duplicated function environments and extract contexts. *)
-    invert_evals. rewrite H in H10, H22; inversion H10; inversion H22; subst; clear H10 H22.
-    destruct ctx' as [fv1 t1], ctx'0 as [fv2 t2]. cbn in *.
-    (* Verify trace-independence of function arguments. *) 
-    assert (Hargs: agree_on_public (senv_mk2 x6 x7 (interp_sec e1 se) (interp_sec e2 se))
-           ($0 $+ (x6, interp_arith e1 v1) $+ (x7, interp_arith e2 v1))
-           ($0 $+ (x6, interp_arith e1 v2) $+ (x7, interp_arith e2 v2))).
-    { resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
-      subst; autorewrite with core in *; try reflexivity;
-      apply f_equal; eapply interp_sec_public_agree; eauto.
-      1,2: destruct (interp_sec e2 se); [reflexivity|]; simpl in Hparam;
-        rewrite VarSet.add_spec in Hparam; firstorder.
-      * destruct (interp_sec e1 se); [reflexivity|]; simpl in Hparam;
-        destruct (interp_sec e2 se); simpl in Hparam.
-        1: rewrite VarSet.remove_spec in Hparam.
-        2: rewrite VarSet.add_spec in Hparam.
-        all: destruct Hparam. 
-        1: split; [|auto]; VarSetDecide.fsetdec.
-        1: right; VarSetDecide.fsetdec.
-      }
-    (* Extract caller trace/memory safety and verify return variable assignment. *)
-    edestruct IHHct as [Htrace Hbody]; eauto.
-    split; [exact Htrace |].
-    resolve_maps. destruct (x ==v param).
-    + subst. autorewrite with core in *.
-      assert (Hpub: fv1 $? y1 = fv2 $? y1). 
-      {
-         apply Hbody. 
-         destruct (VarSet.mem y1 body_se) eqn:Hmem.
-         - simpl in Hparam.
-          VarSetDecide.fsetdec.
-        - rewrite <- VarSet.mem_spec.
-          congruence.
-      }
-      rewrite H14, H26 in Hpub. inversion Hpub. reflexivity.
-    + (* Any other variable *)
-    autorewrite with core in *. apply Hagree. 
-      clear - Hparam n.
-      destruct (VarSet.mem y1 body_se) eqn:Hmem; simpl in Hparam.
-      * rewrite VarSet.add_spec in Hparam. firstorder.
-      * rewrite VarSet.remove_spec in Hparam. firstorder.
   - (* Sequence *)
     (* Pipeline safety properties directly from c1 into c2. *)
     invert_evals. destruct ctx1 as [v1' t1'], ctx3 as [v2' t2'].
@@ -237,7 +194,7 @@ Proof.
         cbn in *.
         destruct ctx' as [v1' t1'].
         match goal with
-        | H : eval_trace phi _ body ?ctx2' |- _ => destruct ctx2' as [v2' t2']
+        | H : eval_trace _ body ?ctx2' |- _ => destruct ctx2' as [v2' t2']
         end.
 
         edestruct IHHct as [Htrace_body Hmem_body]; eauto.
@@ -277,15 +234,15 @@ Definition agree_on_public_sec_ctx (se_static : sec_env) (ctx1 ctx2 : sec_contex
   (forall x, sec_lookup se_static x = Public -> 
              sec_lookup (sec_of ctx1) x = sec_lookup (sec_of ctx2) x).
 
-Definition non_inference_sec (phi: function_env) (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
+Definition non_inference_sec (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
   forall ctx1_in ctx2_in ctx1_out ctx2_out,
     (* If the initial contexts agree on public data and labels... *)
     agree_on_public_sec_ctx se_static ctx1_in ctx2_in ->
     (* ...and they start with identical traces... *)
     sec_trace_of ctx1_in = sec_trace_of ctx2_in ->
     (* ...and they both evaluate the command... *)
-    eval_sec phi ctx1_in c ctx1_out ->
-    eval_sec phi ctx2_in c ctx2_out ->
+    eval_sec ctx1_in c ctx1_out ->
+    eval_sec ctx2_in c ctx2_out ->
     (* ...then their output traces must be identical... *)
     sec_trace_of ctx1_out = sec_trace_of ctx2_out /\ 
     (* ...and their output contexts must still agree on public data and labels. *)
@@ -357,14 +314,14 @@ Proof.
   - apply Hdyn. eapply join_sec_public_els. unfold sec_lookup. rewrite Hjoin. exact Hpub.
 Qed.
 
-Lemma while_soundness_sec : forall phi se_inv e body se_body,
+Lemma while_soundness_sec : forall se_inv e body se_body,
   interp_sec e se_inv = Public ->
-  ct_cmd phi se_inv body se_body ->
-  non_inference_sec phi se_inv body se_body ->
+  ct_cmd se_inv body se_body ->
+  non_inference_sec se_inv body se_body ->
   VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
-  non_inference_sec phi se_inv (While e body) se_inv.
+  non_inference_sec se_inv (While e body) se_inv.
 Proof.
-  intros phi se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
+  intros se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
   unfold non_inference_sec.
   intros ctx1_in ctx2_in ctx1_out ctx2_out Hagree_inv Htrace_in Heval1.
 
@@ -408,15 +365,15 @@ Proof.
       * exact Hagree_inv.
 Qed.
 
-Lemma cmov_non_inference_sec : forall phi se x cond e1 e2 level,
+Lemma cmov_non_inference_sec : forall se x cond e1 e2 level,
   join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
-  non_inference_sec phi se (Cmov x cond e1 e2) (update_sec se x level).
+  non_inference_sec se (Cmov x cond e1 e2) (update_sec se x level).
 Proof.
   Ltac resolve_sec_update_main :=
     intros param Hparam; cbn in *.
 
   unfold non_inference_sec.
-  intros phi se x cond e1 e2 level Hjoin ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
+  intros se x cond e1 e2 level Hjoin ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
   inversion Heval1; inversion Heval2; subst;
     (split; [assumption |]);
     destruct Hagree as [Hval_agree Hdyn_agree];
@@ -456,9 +413,9 @@ Proof.
 Qed.
 
 
-Theorem ct_cmd_soundness_sec : forall phi se c se_out,
-  ct_cmd phi se c se_out ->
-  non_inference_sec phi se c se_out.
+Theorem ct_cmd_soundness_sec : forall se c se_out,
+  ct_cmd se c se_out ->
+  non_inference_sec se c se_out.
 Proof.
   Ltac invert_evals_sec :=
     inversion Heval1; inversion Heval2; subst.
@@ -476,20 +433,7 @@ Proof.
     repeat rewrite lookup_update_sec_ne in * by congruence
   ].
 
-  Ltac resolve_senv_mk2 dest1 dest2 Hagree:=
-  intros param Hparam; cbn in *; try rewrite <- pub_not_sec in Hparam;
-  destruct (param ==v dest2); [
-    subst; repeat rewrite lookup_senv_mk2_eq2 in *
-  | destruct (param ==v dest1); [
-      subst; repeat rewrite lookup_senv_mk2_eq1 in * by congruence
-    | repeat rewrite lookup_senv_mk2_ne in * by congruence;
-      autorewrite with core in *;
-      try reflexivity; try (apply Hagree; exact Hparam)
-    ]
-  ];
-  autorewrite with core in *; try reflexivity.
-
-  intros phi se c se_out Hct.
+  intros se c se_out Hct.
   unfold non_inference_sec.
 
   induction Hct;
@@ -517,65 +461,16 @@ Proof.
       * apply Hdyn_agree. exact Hparam.
 
   - (* CtCmov *)
-    pose proof (cmov_non_inference_sec phi se x cond e1 e2 level H) as Hcmov.
+    pose proof (cmov_non_inference_sec se x cond e1 e2 level H) as Hcmov.
     unfold non_inference_sec in Hcmov.
     eapply Hcmov; eauto.
-
-  - (* CtAssignCall *)
-    invert_evals_sec.
-
-    (* Unify the function environment lookups *)
-    match goal with
-    | H1 : Map.M.lookup phi _ = Some _, H2 : Map.M.lookup phi _ = Some _, H3 : Map.M.lookup phi _ = Some _ |- _ =>
-        rewrite H1 in H2; inversion H2; subst; clear H2;
-        rewrite H1 in H3; inversion H3; subst; clear H3
-    end.
-    destruct ctx' as [[fv1 fdyn1] t1], ctx'0 as [[fv2 fdyn2] t2]. cbn in *.
-
-    (* Prove that the initial contexts for the function body agree on public
-    variables. We must prove both values and dynamic labels match for the
-    arguments if they are public. *)
-    assert (Hargs: agree_on_public_sec_ctx
-            (senv_mk2 x6 x7 (interp_sec e1 se) (interp_sec e2 se))
-           ($0 $+ (x6, interp_arith e1 (sec_val_of ctx1_in)) $+ (x7, interp_arith e2 (sec_val_of ctx1_in)),
-            (senv_mk2 x6 x7  (interp_sec e1 (sec_of ctx1_in)) (interp_sec e2 (sec_of ctx1_in))),
-            sec_trace_of ctx1_in)
-           ($0 $+ (x6, interp_arith e1 (sec_val_of ctx2_in)) $+ (x7, interp_arith e2 (sec_val_of ctx2_in)),
-           senv_mk2 x6 x7 (interp_sec e1 (sec_of ctx2_in)) (interp_sec e2 (sec_of ctx2_in)),
-            sec_trace_of ctx1_in)).
-    { destruct Hagree as [Hval_agree Hdyn_agree].
-      split.
-      - resolve_senv_mk2 x6 x7 Hval_agree; apply f_equal;
-        eapply interp_sec_public_agree; eauto.
-
-      - resolve_senv_mk2 x6 x7 Hdyn_agree; eapply interp_sec_dynamic_agree; eauto.
-    }
-
-    (* Apply the induction hypothesis for the function body *)
-    rewrite <- Htrace in *.
-    edestruct IHHct as [Htrace_body Hbody]; eauto.
-    split; [exact Htrace_body |].
-
-    (* Prove that the output contexts after the call agree on public data *)
-    destruct Hagree as [Hval_agree Hdyn_agree].
-    destruct Hbody as [Hbody_val Hbody_dyn].
-    split.
-    + (* Valuation agreement for the return variable and caller environment *)
-      resolve_sec_update x.
-      * assert (Hpub: fv1 $? y1 = fv2 $? y1) by
-        (apply Hbody_val; rewrite pub_not_sec in *; exact Hparam).
-        congruence.
-      * apply Hval_agree. rewrite pub_not_sec in *. exact Hparam.
-    + (* Dynamic label agreement for the return variable and caller environment *)
-      resolve_sec_update x.
-      * apply Hbody_dyn. exact Hparam.
-      * apply Hdyn_agree. exact Hparam.
 
   - (* CtSequence *)
     inversion Heval1; inversion Heval2; subst; clear Heval1 Heval2.
     (* IHHct1 tells us that after executing c1, the intermediate contexts
        (ctx1 and ctx0) will agree on se1 and have identical traces. *)
     edestruct IHHct1 as [Htrace_mid Hagree_mid]; eauto.
+
   - (* CtIf *)
     (* 1. Prove the guard evaluates equally in both contexts *)
     assert (Hcond: interp_arith e (sec_val_of ctx1_in) = interp_arith e (sec_val_of ctx2_in)).
