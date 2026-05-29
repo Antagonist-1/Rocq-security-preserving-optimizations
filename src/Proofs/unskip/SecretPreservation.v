@@ -115,6 +115,11 @@ Proof.
 Qed.
 
 (* Main theorem of secret preservation *)
+(* [opt_keeps_secrets_secret] proves the secret preservation half of
+   [is_safe_opt]. [opt_unskip_sec_forward] simulates optimized executions from
+   source executions, and the determinism of eval_sec ensures that the optimized
+   execution must have the same final state as the source execution *)
+
 Lemma opt_unskip_keeps_secrets_secret :
   opt_keeps_secrets_secret opt_unskip.
 Proof.
