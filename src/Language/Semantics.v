@@ -53,49 +53,11 @@ Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
 
                     ⟦e⟧ᵥ = a
       ----------------------------------- EvalTraceAssign
-       (v, Assign x e) ↓ᵩ (v $+ (x, a))
+       (v, Assign x e) ↓ (v $+ (x, a))
 
-       (c1, v) ↓ᵩ v'   (c2, v') ↓ᵩ v''
+       (c1, v) ↓ v'   (c2, v') ↓ v''
       ----------------------------------- EvalTraceSequence
-          (v, Sequence c1 c2) ↓ᵩ v''
-
-    Notice the subscript φ: this indicates that we have an function_env of functions.
-    This function_env of functions gives the body of each function, the names of its
-    arguments, and the name of its return value.  For example, to say that the
-    function "collatz" has body [CollatzBody], takes arguments "start" and "flight",
-    and writes its result to "out", we would write::
-
-        phi = $0 $+ ("collatz", (("start", "flight"), "out", CollatzBody))
-
-    and to say that function "factorial" has body [FactBody], takes argument "n",
-    and writes its result to "f", we might write the following (every function takes
-    two parameters, so we use "" as the name of the second argument of "factorial").
-
-        phi = $0 $+ ("factorial", (("n", ""), "f", FactBody))
-
-    We need an additional rule [EvalTraceAssignCall] for function calls:
-
-               (f ↦ ((x1, x2), y, body)) ∈ φ
-                  ⟦e1⟧ᵥ = a1    ⟦e2⟧ᵥ = a2
-          (body, ($0 $+ (x1, a1) $+ (x2, a2))) ↓ᵩ v'
-                        (y ↦ a) ∈ v'
-       ------------------------------------------------
-         (AssignCall x f e1 e2, v) ↓ᵩ (v $+ (x, a))
-
-   A few notes:
-
-   - This rule passes arguments by value: that is, the function's arguments are
-     evaluated in the current valuation [v]: [⟦e⟧ᵥ = a].
-
-   - The function function_env [phi] (represented as φ above) maps function names
-     (strings) to function signatures and function bodies:
-     [(f ↦ ((x1, x2), y, body)) ∈ φ].
-
-   - Functions return their output in variables indicated by their signatures:
-     [(y ↦ a) ∈ v1].
-
-   - Functions do not have access to the contexts of their callers: [body] runs
-     in a clean environment.
+          (v, Sequence c1 c2) ↓ v''
 
    Here is how it looks in Rocq: *)
 
