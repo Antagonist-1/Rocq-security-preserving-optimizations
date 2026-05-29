@@ -228,26 +228,12 @@ Qed.
 
 
 (*
-   Augment the eval relation to also track security levels.
-   The new rules are detailed below.
+   Augment the eval relation to also track security levels. The new rules are
+   detailed below.
 
-
-   [EvalSecAssign]
-   adds the premise
-    [interp_sec e (sec_of ctx) = level]
-   and updates both the valuation and the security environment,
-   so the assigned variable receives both its value and its computed security label.
-
-   [EvalSecAssignCall]
-   adds security-level evaluation premises for the two arguments,
-    [interp_sec e1 (sec_of ctx) = level1] and
-    [interp_sec e2 (sec_of ctx) = level2].
-   The callee then runs in a fresh security environment initialized
-   with those argument labels.
-   The caller additionally requires
-    [sec_lookup (sec_of ctx') y = level]
-   so that the return variable's security label can
-   be propagated back to the assignee.
+   [EvalSecAssign] adds the premise [interp_sec e (sec_of ctx) = level] and
+   updates both the valuation and the security environment, so the assigned
+   variable receives both its value and its computed security label.
  *)
 
 

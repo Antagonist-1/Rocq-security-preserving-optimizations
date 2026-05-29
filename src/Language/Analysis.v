@@ -38,23 +38,24 @@ Fixpoint while_fixpoint  (f: var_set -> var_set) (cond_vars: var_set) (out: var_
       else while_fixpoint f cond_vars _in n
   end.
 
-(*note: n_vars is enough to iterate. because f is monotonous, and there are a bound number of variables.*)
+(* Note: n_vars is enough to iterate. because f is monotonous, and there are a
+bound number of variables.*)
 
-(*Set of all vars stored by some program*) (*This is unused for now. We need it if we do While loop elimination *)
+(* Set of all vars stored by some program*) (*This is unused for now. We need it
+if we do While loop elimination *)
 (* Fixpoint written_vars (c: cmd) : var_set := *)
 (*   match c with *)
 (*   | Skip => VarSet.empty *)
 (*   | Assign x _ => VarSet.singleton x *)
-(*   | AssignCall x _ _ _ => VarSet.singleton x *)
 (*   | Sequence c1 c2 => VarSet.union (written_vars c1) (written_vars c2) *)
 (*   | If _ thenC elseC => VarSet.union (written_vars thenC) (written_vars elseC) *)
 (*   | While _ body => written_vars body *)
 (*   end. *)
 
 
-(* compute live variables, given live variables from after command *)
+(* Compute live variables, given live variables from after command *)
 (* The analysis goes backwards. *)
-(* formula: live_in = live_out + vars used in command - vars overwritten in command *)
+(* Formula: live_in = live_out + vars used in command - vars overwritten in cmd *)
 
 (*More details about formula: https://cs420.epfl.ch/c/06_dataflow.html*)
 Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=

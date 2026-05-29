@@ -43,11 +43,6 @@ Definition low_equiv := agree_on_public.
    [CtAssign] updates the assigned variable with the label computed by
    [interp_sec], recording how information may flow through the assignment.
 
-   [CtAssignCall] mirrors function-call structure, but initializes the callee
-   with the argument labels rather than argument values, checks the callee body
-   under those labels, and propagates the return variable's label back to the
-   caller via [sec_lookup body_se y].
-
    The new constant-time condition appears in [CtIf]: the guard must satisfy
    [interp_sec e se = Public], ensuring that branching does not depend on secret
    data.  Both branches are checked, and their resulting environments are joined
