@@ -25,15 +25,15 @@ Definition agree_on_public_sec_ctx (se_static : sec_env) (ctx1 ctx2 : sec_contex
   (forall x, sec_lookup se_static x = Public ->
              sec_lookup (sec_of ctx1) x = sec_lookup (sec_of ctx2) x).
 
-Definition non_inference_sec (phi: function_env) (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
+Definition non_inference_sec (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
   forall ctx1_in ctx2_in ctx1_out ctx2_out,
     (* If the initial contexts agree on public data and labels... *)
     agree_on_public_sec_ctx se_static ctx1_in ctx2_in ->
     (* ...and they start with identical traces... *)
     sec_trace_of ctx1_in = sec_trace_of ctx2_in ->
     (* ...and they both evaluate the command... *)
-    eval_sec phi ctx1_in c ctx1_out ->
-    eval_sec phi ctx2_in c ctx2_out ->
+    eval_sec ctx1_in c ctx1_out ->
+    eval_sec ctx2_in c ctx2_out ->
     (* ...then their output traces must be identical... *)
     sec_trace_of ctx1_out = sec_trace_of ctx2_out /\
     (* ...and their output contexts must still agree on public data and labels. *)
@@ -100,14 +100,14 @@ Proof.
 Qed.
 
 (* proves the ct_cmd soundness, specifically for the while case. *)
-Lemma while_soundness_sec : forall phi se_inv e body se_body,
+Lemma while_soundness_sec : forall se_inv e body se_body,
   interp_sec e se_inv = Public ->
-  ct_cmd phi se_inv body se_body ->
-  non_inference_sec phi se_inv body se_body ->
+  ct_cmd se_inv body se_body ->
+  non_inference_sec se_inv body se_body ->
   VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
-  non_inference_sec phi se_inv (While e body) se_inv.
+  non_inference_sec se_inv (While e body) se_inv.
 Proof.
-  intros phi se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
+  intros se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
   unfold non_inference_sec.
   intros ctx1_in ctx2_in ctx1_out ctx2_out Hagree_inv Htrace_in Heval1.
 
@@ -152,15 +152,15 @@ Proof.
 Qed.
 
 (* proves the ct_cmd soundness, specifically for the cmov case. *)
-Lemma cmov_non_inference_sec : forall phi se x cond e1 e2 level,
+Lemma cmov_non_inference_sec : forall se x cond e1 e2 level,
   join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
-  non_inference_sec phi se (Cmov x cond e1 e2) (update_sec se x level).
+  non_inference_sec se (Cmov x cond e1 e2) (update_sec se x level).
 Proof.
   Ltac resolve_sec_update_main :=
     intros param Hparam; cbn in *.
 
   unfold non_inference_sec.
-  intros phi se x cond e1 e2 level Hjoin ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
+  intros se x cond e1 e2 level Hjoin ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
   inversion Heval1; inversion Heval2; subst;
     (split; [assumption |]);
     destruct Hagree as [Hval_agree Hdyn_agree];
@@ -201,9 +201,9 @@ Qed.
 
 (* A program that is constant time according to our definition should satisfy
 non-inference_sec. TODO clean this proof *) 
-Theorem ct_cmd_soundness_sec : forall phi se c se_out,
-  ct_cmd phi se c se_out ->
-  non_inference_sec phi se c se_out.
+Theorem ct_cmd_soundness_sec : forall se c se_out,
+  ct_cmd se c se_out ->
+  non_inference_sec se c se_out.
 Proof.
   Ltac invert_evals_sec :=
     inversion Heval1; inversion Heval2; subst.
@@ -234,7 +234,7 @@ Proof.
   ];
   autorewrite with core in *; try reflexivity.
 
-  intros phi se c se_out Hct.
+  intros se c se_out Hct.
   unfold non_inference_sec.
 
   induction Hct;
@@ -262,59 +262,9 @@ Proof.
       * apply Hdyn_agree. exact Hparam.
 
   - (* CtCmov *)
-    pose proof (cmov_non_inference_sec phi se x cond e1 e2 level H) as Hcmov.
+    pose proof (cmov_non_inference_sec se x cond e1 e2 level H) as Hcmov.
     unfold non_inference_sec in Hcmov.
     eapply Hcmov; eauto.
-
-  - (* CtAssignCall *)
-    invert_evals_sec.
-
-    (* Unify the function environment lookups *)
-    match goal with
-    | H1 : Map.M.lookup phi _ = Some _, H2 : Map.M.lookup phi _ = Some _, H3 : Map.M.lookup phi _ = Some _ |- _ =>
-        rewrite H1 in H2; inversion H2; subst; clear H2;
-        rewrite H1 in H3; inversion H3; subst; clear H3
-    end.
-    destruct ctx' as [[fv1 fdyn1] t1], ctx'0 as [[fv2 fdyn2] t2]. cbn in *.
-
-    (* Prove that the initial contexts for the function body agree on public
-    variables. We must prove both values and dynamic labels match for the
-    arguments if they are public. *)
-    assert (Hargs: agree_on_public_sec_ctx
-            (senv_mk2 x6 x7 (interp_sec e1 se) (interp_sec e2 se))
-           ($0 $+ (x6, interp_arith e1 (sec_val_of ctx1_in)) $+ (x7, interp_arith e2 (sec_val_of ctx1_in)),
-            (senv_mk2 x6 x7  (interp_sec e1 (sec_of ctx1_in)) (interp_sec e2 (sec_of ctx1_in))),
-            sec_trace_of ctx1_in)
-           ($0 $+ (x6, interp_arith e1 (sec_val_of ctx2_in)) $+ (x7, interp_arith e2 (sec_val_of ctx2_in)),
-           senv_mk2 x6 x7 (interp_sec e1 (sec_of ctx2_in)) (interp_sec e2 (sec_of ctx2_in)),
-            sec_trace_of ctx1_in)).
-    { destruct Hagree as [Hval_agree Hdyn_agree].
-      split.
-      - resolve_senv_mk2 x6 x7 Hval_agree; apply f_equal;
-        eapply interp_sec_public_agree; eauto.
-
-      - resolve_senv_mk2 x6 x7 Hdyn_agree; eapply interp_sec_dynamic_agree; eauto.
-    }
-
-    (* Apply the induction hypothesis for the function body *)
-    rewrite <- Htrace in *.
-    edestruct IHHct as [Htrace_body Hbody]; eauto.
-    split; [exact Htrace_body |].
-
-    (* Prove that the output contexts after the call agree on public data *)
-    destruct Hagree as [Hval_agree Hdyn_agree].
-    destruct Hbody as [Hbody_val Hbody_dyn].
-    split.
-    + (* Valuation agreement for the return variable and caller environment *)
-      resolve_sec_update x.
-      * assert (Hpub: fv1 $? y1 = fv2 $? y1) by
-        (apply Hbody_val; rewrite lookup_simpl_pub in *; exact Hparam).
-        congruence.
-      * apply Hval_agree. rewrite lookup_simpl_pub in *. exact Hparam.
-    + (* Dynamic label agreement for the return variable and caller environment *)
-      resolve_sec_update x.
-      * apply Hbody_dyn. exact Hparam.
-      * apply Hdyn_agree. exact Hparam.
 
   - (* CtSequence *)
     inversion Heval1; inversion Heval2; subst; clear Heval1 Heval2.
@@ -396,11 +346,11 @@ Definition se_out_sample : sec_env := senv_mk1 "y" Secret.
 (* [inferent_example] satisfies [non_inference] under ([se_sample], [se_out_sample]):
    the value of [x] is always 0 in both runs, and [Assign] adds nothing to the
    trace, so output traces and public values trivially agree. *)
-Lemma inferent_example_non_inference : forall phi,
-  non_inference phi se_sample inferent_example se_out_sample.
+Lemma inferent_example_non_inference :
+  non_inference se_sample inferent_example se_out_sample.
 Proof.
   unfold non_inference, inferent_example, se_sample, se_out_sample.
-  intros phi v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
+  intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
   inversion Heval1; subst; clear Heval1.
   inversion Heval2; subst; clear Heval2.
   split; [reflexivity |].
@@ -415,11 +365,11 @@ Proof.
 Qed.
 
 (* non_inference_sec fails*)
-Lemma inferent_example_not_non_inference_sec : forall phi,
-  ~ non_inference_sec phi se_sample inferent_example se_out_sample.
+Lemma inferent_example_not_non_inference_sec :
+  ~ non_inference_sec se_sample inferent_example se_out_sample.
 Proof.
   unfold non_inference_sec, inferent_example, se_sample, se_out_sample.
-  intros phi H.
+  intros H.
 
   (* 2 start context that agree on public vars, but it's a bit of a trick,
     since "y" is not declared: not public nor secret.
@@ -427,7 +377,7 @@ Proof.
   pose (ctx1 := (($0 : valuation), senv_mk1 "y" Secret, @nil trace_event)).
   pose (ctx2 := (($0 : valuation), VarSet.empty,        @nil trace_event)).
 
-  assert (Heval1 : eval_sec phi ctx1 inferent_example
+  assert (Heval1 : eval_sec ctx1 inferent_example
                             ((ctx1 sv$+ ("x", 0)) s$+ ("x", Secret))).
   { apply EvalSecAssign with (a := 0) (level := Secret).
     - unfold ctx1, sec_val_of; simpl.
@@ -435,7 +385,7 @@ Proof.
     - reflexivity.
   }
 
-  assert (Heval2 : eval_sec phi ctx2 inferent_example
+  assert (Heval2 : eval_sec ctx2 inferent_example
                             ((ctx2 sv$+ ("x", 0)) s$+ ("x", Public))).
   { apply EvalSecAssign with (a := 0) (level := Public).
     - unfold ctx2, sec_val_of; simpl.
@@ -473,4 +423,3 @@ Proof.
   rewrite !lookup_update_sec_eq in Hdyn.
   discriminate.
 Qed.
-

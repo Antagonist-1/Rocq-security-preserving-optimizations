@@ -23,6 +23,7 @@ src/Proofs/unsafe_DSE/Soundness.v
 src/Proofs/unsafe_DSE/NotSecure.v
 src/Proofs/EvalEquivalence.v
 src/Proofs/Noninference.v
+src/Proofs/NoninferenceSec.v
 src/Proofs/SecEnvSubtyping.v
 src/Proofs/safe_DSE/Defs.v
 src/Proofs/safe_DSE/SecretPreservation.v
