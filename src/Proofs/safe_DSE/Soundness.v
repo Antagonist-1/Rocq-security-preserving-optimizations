@@ -11,18 +11,18 @@ Require Import Proofs.unskip.Soundness.
 Require Import Proofs.EvalEquivalence.
 
 
-Lemma eval_liveness_coincidence: forall phi c out v1 v2 v1',
-  eval phi v1 c v1' ->
+Lemma eval_liveness_coincidence: forall c out v1 v2 v1',
+  eval v1 c v1' ->
   agree_on (liveness c out) v1 v2 ->
   exists v2',
-    eval phi v2 c v2' /\
+    eval v2 c v2' /\
     agree_on out v1' v2'.
 Proof.
-  intros phi c out v1 v2 v1' Heval Hagree.
-  destruct (Eval_lift_trace_sec phi v1 c v1' Heval senv_mk0 nil)
+  intros c out v1 v2 v1' Heval Hagree.
+  destruct (Eval_lift_trace_sec v1 c v1' Heval senv_mk0 nil)
     as [sec1' [trace1' Heval1_sec]].
   pose proof (eval_sec_liveness_coincidence
-    phi c out
+    c out
     (v1, senv_mk0, nil)
     (v2, senv_mk0, nil)
     (v1', sec1', trace1')
@@ -33,18 +33,18 @@ Proof.
   destruct Hcoincide as [ctx2_out [Heval2_sec Hcoincide_out]].
   exists (sec_val_of ctx2_out).
   split.
-  - exact (Eval_proj_sec_trace phi (v2, senv_mk0, nil) c ctx2_out Heval2_sec).
+  - exact (Eval_proj_sec_trace (v2, senv_mk0, nil) c ctx2_out Heval2_sec).
   - exact (sec_coincide_vals _ _ _ Hcoincide_out).
 Qed.
 
-Lemma safe_dse_helper_sound: forall phi c out v1 v2 v1' secrets,
+Lemma safe_dse_helper_sound: forall c out v1 v2 v1' secrets,
   agree_on (liveness c out) v1 v2 ->
-  eval phi v1 c v1' ->
+  eval v1 c v1' ->
   exists v2',
-    eval phi v2 (safe_dse_helper c out secrets) v2' /\
+    eval v2 (safe_dse_helper c out secrets) v2' /\
     agree_on out v1' v2'.
 Proof.
-  intros phi c out v1 v2 v1' secrets H_agree H.
+  intros c out v1 v2 v1' secrets H_agree H.
   revert out secrets v2 H_agree.
   induction H; intros out secrets v_2 H_agree.
   - eexists. split; [econstructor | exact H_agree].
@@ -115,18 +115,6 @@ Proof.
               (a2 := interp_arith e2 v_2); eauto; discriminate
           | eapply agree_on_dead_update_both; eauto ] ].
   - simpl in *.
-    assert (Ha1: interp_arith e1 v_2 = a1).
-    { rewrite <- H0. apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact H_agree].
-      VarSetDecide.fsetdec. }
-    assert (Ha2: interp_arith e2 v_2 = a2).
-    { rewrite <- H1. apply interp_arith_agree.
-      eapply agree_on_subset; [| apply agree_on_sym; exact H_agree].
-      VarSetDecide.fsetdec. }
-    exists (v_2 $+ (x, a)). split.
-    + eapply EvalAssignCall; [exact H | simpl; exact Ha1 | simpl; exact Ha2 | eassumption | eassumption].
-    + eapply agree_on_written_update; exact H_agree.
-  - simpl in *.
     destruct (IHeval1 (liveness c2 out) secrets v_2 H_agree)
       as [v_mid2 [H_mid2 H_agree_mid]].
     destruct (IHeval2 out (sec_post c1 secrets) v_mid2 H_agree_mid)
@@ -153,34 +141,34 @@ Proof.
     exists v2'. split.
     + eapply EvalIfFalse; [simpl; exact Hcond | exact H2'].
     + exact H_agree2'.
-  - assert (Hwhile : eval phi v (While e body) v'').
+  - assert (Hwhile : eval v (While e body) v'').
     { eapply EvalWhileTrue; eauto. }
-    destruct (eval_liveness_coincidence phi (While e body) out v v_2 v'' Hwhile H_agree)
+    destruct (eval_liveness_coincidence (While e body) out v v_2 v'' Hwhile H_agree)
       as [v_while2 [H_while2 H_agree_while2]].
     exists v_while2. split; assumption.
-  - assert (Hwhile : eval phi v (While e body) v).
+  - assert (Hwhile : eval v (While e body) v).
     { eapply EvalWhileFalse; eauto. }
-     destruct (eval_liveness_coincidence phi (While e body) out v v_2 v Hwhile H_agree)
+     destruct (eval_liveness_coincidence (While e body) out v v_2 v Hwhile H_agree)
        as [v_while2 [H_while2 H_agree_while2]].
      exists v_while2. split; assumption.
 Qed.
 
-Lemma opt_safe_dse_sound : forall phi pgm secrets v v',
-  eval phi v (cmd_of pgm) v' ->
+Lemma opt_safe_dse_sound : forall pgm secrets v v',
+  eval v (cmd_of pgm) v' ->
   exists v_opt,
-    eval phi v (cmd_of (opt_safe_dse pgm secrets)) v_opt /\
+    eval v (cmd_of (opt_safe_dse pgm secrets)) v_opt /\
     agree_on (output_of pgm) v' v_opt.
 Proof.
-  intros phi pgm secrets v v' Heval.
+  intros pgm secrets v v' Heval.
   unfold opt_safe_dse.
 
   assert (H_dse: exists v_dse,
-    eval phi v (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets) v_dse /\
+    eval v (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets) v_dse /\
     agree_on (protected_out pgm secrets) v' v_dse).
   {
     destruct pgm as [c out].
     simpl.
-    specialize (safe_dse_helper_sound phi c (VarSet.union out (sec_post c secrets)) v v v' secrets).
+    specialize (safe_dse_helper_sound c (VarSet.union out (sec_post c secrets)) v v v' secrets).
     intro Hsound.
     eapply Hsound.
     - apply agree_on_refl.
@@ -200,16 +188,16 @@ Lemma opt_safe_dse_core_eval_sec_sound :
   opt_eval_sec_sound opt_safe_dse_core.
 Proof.
   unfold opt_eval_sec_sound, opt_safe_dse_core.
-  intros phi sctx sctx' [c out] Hsrc.
+  intros sctx sctx' [c out] Hsrc.
   destruct sctx as [[v se] t].
   destruct sctx' as [[v' se'] t'].
   simpl in *.
-  pose proof (Eval_proj_sec_trace phi (v, se, t) c (v', se', t') Hsrc) as Heval.
-  pose proof (safe_dse_helper_sound phi c
+  pose proof (Eval_proj_sec_trace (v, se, t) c (v', se', t') Hsrc) as Heval.
+  pose proof (safe_dse_helper_sound c
     (VarSet.union out (sec_post c se))
     v v v' se (agree_on_refl _ _) Heval) as Hsound.
   destruct Hsound as [v_opt [Hopt _]].
-  destruct (Eval_lift_trace_sec phi v
+  destruct (Eval_lift_trace_sec v
     (safe_dse_helper c (VarSet.union out (sec_post c se)) se)
     v_opt Hopt se t) as [sec_opt [trace_opt Hsec_opt]].
   exists (v_opt, sec_opt, trace_opt).

@@ -11,18 +11,18 @@ Example sctx: sec_context := ($0 $+ ("x", 123), senv_mk1 "x" Secret, nil).
 Example sctx': sec_context := ($0 $+ ("x", 123) $+ ("x", 0), senv_mk2 "x" "x" Secret Public, nil).
 Example sctx'' := sctx.
 
-Theorem unsafeDSE_unsafe : forall phi,  ~ is_safe_opt phi (fun p _ => opt_dse p).
+Theorem unsafeDSE_unsafe : ~ is_safe_opt (fun p _ => opt_dse p).
 Proof.
   unfold is_safe_opt.
-  intros phi H.
+  intros H.
   destruct H.
   clear H.
   unfold opt_keeps_secrets_secret in H0.
-  specialize (H0 sctx sctx' sctx'' unsafe2 (single_out_pgm Skip "y") $0).
+  specialize (H0 sctx sctx' sctx'' unsafe2 (single_out_pgm Skip "y")).
   unfold unsafe2, secret_overwritten_with_const, opt_dse in H0.
   simpl in H0.
-  assert (Hpre1 : eval_sec $0 sctx ("x" <- 0) sctx') by (constructor; reflexivity).
-  assert (Hpre2 : eval_sec $0 sctx Skip sctx'') by constructor.
+  assert (Hpre1 : eval_sec sctx ("x" <- 0) sctx') by (constructor; reflexivity).
+  assert (Hpre2 : eval_sec sctx Skip sctx'') by constructor.
   specialize (H0 eq_refl Hpre1 Hpre2 "x").
   destruct H0.
   unfold sctx', sctx'' in H.

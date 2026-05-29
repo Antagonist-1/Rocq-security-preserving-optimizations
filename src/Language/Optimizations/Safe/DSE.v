@@ -14,8 +14,6 @@ Fixpoint sec_post (c: cmd) (se: sec_env) : sec_env :=
   | Skip => se
   | Assign x e =>
       update_sec se x (interp_sec e se)
-  | AssignCall x _ _ _ =>
-      update_sec se x Secret
   | Cmov x cond e1 e2 =>
       update_sec se x
         (join_sec (interp_sec cond se)
@@ -44,9 +42,6 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
       | false, Public, Public => Skip
       | _, _, _ => Assign x e
       end
-    (* Keep all assigncalls : they are treated conservatively in our case. *)
-  | AssignCall x f e1 e2 => AssignCall x f e1 e2
-  (* Cmov assignements are treated the same way as normal assignments*)
   | Cmov x cond e1 e2 =>
       match (VarSet.mem x out), (sec_lookup secrets x),
             (join_sec (interp_sec cond secrets)

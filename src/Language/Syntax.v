@@ -42,7 +42,6 @@ Inductive expr :=
 Inductive cmd :=
 | Skip : cmd
 | Assign : var -> expr -> cmd
-| AssignCall : var -> var -> expr -> expr -> cmd
 | Cmov : var -> expr -> expr -> expr -> cmd
 | Sequence : cmd -> cmd -> cmd
 | If : expr -> cmd -> cmd -> cmd
@@ -69,12 +68,6 @@ Infix "mod" := (Binop Modulo) (at level 40) : expr.
 Notation "x <- e" :=
   (Assign x e%expr)
     (at level 75).
-Notation "x <- 'call1' f e1" :=
-  (AssignCall x f e1%expr (Const 0))
-    (at level 75, f at level 0, e1 at level 0).
-Notation "x <- 'call2' f e1 e2" :=
-  (AssignCall x f e1%expr e2%expr)
-    (at level 75, f at level 0, e1 at level 0, e2 at level 0).
 Infix ";;" :=
   Sequence (at level 76).
 Notation "'when' e 'then' then_ 'else' else_ 'done'" :=
@@ -84,4 +77,4 @@ Notation "'while' e 'loop' body 'done'" :=
   (While e%expr body)
     (at level 75).
 
-Definition function_env := fmap string ((var * var) * var * cmd).
+

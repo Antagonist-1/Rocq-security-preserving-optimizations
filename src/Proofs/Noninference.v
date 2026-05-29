@@ -66,15 +66,15 @@ Proof.
 Qed.
 
 (* Cmov doesn't create a trace event. We can prove its non_inference property*)
-Lemma cmov_non_inference : forall phi se x cond e1 e2 level,
+Lemma cmov_non_inference : forall se x cond e1 e2 level,
   join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
-  non_inference phi se (Cmov x cond e1 e2) (update_sec se x level).
+  non_inference se (Cmov x cond e1 e2) (update_sec se x level).
 Proof.
   unfold non_inference.
   Ltac resolve_cmov_maps :=
     unfold agree_on_public, sec_lookup in *; intros param Hparam;
     autorewrite with core in *; cbn in *.
-  intros phi se x cond e1 e2 level Hjoin
+  intros se x cond e1 e2 level Hjoin
     v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
   split.
   { inversion Heval1; inversion Heval2; subst; reflexivity. }
@@ -95,9 +95,9 @@ Qed.
 
 (* A program that is constant time according to our definition should satisfy
 non-inference. *) 
-Theorem ct_cmd_soundness : forall phi se c se_out,
-  ct_cmd phi se c se_out ->
-  non_inference phi se c se_out.
+Theorem ct_cmd_soundness : forall se c se_out,
+  ct_cmd se c se_out ->
+  non_inference se c se_out.
 Proof.
   Ltac invert_evals :=
     inversion Heval1; inversion Heval2; subst.
@@ -107,7 +107,7 @@ Proof.
     autorewrite with core in *; cbn in *.
 
 
-  intros phi se c se_out Hct.
+  intros se c se_out Hct.
   unfold non_inference.
   induction Hct;
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
@@ -135,49 +135,8 @@ Proof.
           auto.
   - (* Cmov*)
     eapply cmov_non_inference; eauto.
-  - (* AssignCall*)
-    invert_evals. rewrite H in H10, H22; inversion H10; inversion H22; subst; clear H10 H22.
-    destruct ctx' as [fv1 t1], ctx'0 as [fv2 t2]. cbn in *.
-    (* Verify noninference of trace from each function arguments.*) 
-    assert (Hargs: agree_on_public (senv_mk2 x6 x7 (interp_sec e1 se) (interp_sec e2 se))
-           ($0 $+ (x6, interp_arith e1 v1) $+ (x7, interp_arith e2 v1))
-           ($0 $+ (x6, interp_arith e1 v2) $+ (x7, interp_arith e2 v2))).
-    { resolve_maps. destruct (x7 ==v param); destruct (x6 ==v param);
-      subst; autorewrite with core in *; try reflexivity;
-      apply f_equal; eapply interp_sec_public_agree; eauto.
-      1,2: destruct (interp_sec e2 se); [reflexivity|]; simpl in Hparam;
-        rewrite VarSet.add_spec in Hparam; firstorder.
-      * destruct (interp_sec e1 se); [reflexivity|]; simpl in Hparam;
-        destruct (interp_sec e2 se); simpl in Hparam.
-        1: rewrite VarSet.remove_spec in Hparam.
-        2: rewrite VarSet.add_spec in Hparam.
-        all: destruct Hparam. 
-        1: split; [|auto]; VarSetDecide.fsetdec.
-        1: right; VarSetDecide.fsetdec.
-      }
-    (* Examine trace from function body and check assignment on return variable*)
-    edestruct IHHct as [Htrace Hbody]; eauto.
-    split; [exact Htrace |].
-    resolve_maps. destruct (x ==v param).
-    + (* x = param*)
-      subst. autorewrite with core in *.
-      assert (Hpub: fv1 $? y1 = fv2 $? y1). 
-      {
-         apply Hbody. 
-         destruct (VarSet.mem y1 body_se) eqn:Hmem.
-         - simpl in Hparam.
-          VarSetDecide.fsetdec.
-        - rewrite <- VarSet.mem_spec.
-          congruence.
-      }
-      rewrite H14, H26 in Hpub. inversion Hpub. reflexivity.
-    + (* x <> param*)
-    autorewrite with core in *. apply Hagree. 
-      clear - Hparam n.
-      destruct (VarSet.mem y1 body_se) eqn:Hmem; simpl in Hparam.
-      * rewrite VarSet.add_spec in Hparam. firstorder.
-      * rewrite VarSet.remove_spec in Hparam. firstorder.
-  - (* Sequence*)
+  - (* Sequence *)
+    (* Pipeline safety properties directly from c1 into c2. *)
     invert_evals. destruct ctx1 as [v1' t1'], ctx3 as [v2' t2'].
     edestruct IHHct1 as [Htrace1 Hmem1]; eauto; subst.
     eapply IHHct2; eauto.
@@ -232,7 +191,7 @@ Proof.
         cbn in *.
         destruct ctx' as [v1' t1'].
         match goal with
-        | H : eval_trace phi _ body ?ctx2' |- _ => destruct ctx2' as [v2' t2']
+        | H : eval_trace _ body ?ctx2' |- _ => destruct ctx2' as [v2' t2']
         end.
 
         edestruct IHHct as [Htrace_body Hmem_body]; eauto.
