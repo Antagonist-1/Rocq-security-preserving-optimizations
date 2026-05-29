@@ -1,6 +1,7 @@
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
+Require Import Language.Analysis.
 
 Module vsp := VarSetProps.
 
@@ -163,3 +164,26 @@ Proof.
   apply Hagree. exact Hy.
 Qed.
 
+(* agreeing on all vars used in an expr is enough to evaluate to the same value*)
+Lemma interp_arith_agree: forall e v1 v2,
+  agree_on (vars_in_expr e) v1 v2 ->
+  interp_arith e v1 = interp_arith e v2.
+Proof.
+  unfold agree_on.
+  induction e; simpl; intros.
+  - reflexivity.
+  - rewrite H.
+    reflexivity.
+    rewrite VarSet.mem_spec.
+    rewrite VarSet.singleton_spec.
+    reflexivity.
+  - erewrite IHe1.
+    erewrite IHe2.
+    1: reflexivity.
+    1,2: intros;
+      apply H;
+      rewrite VarSet.mem_spec in *;
+      rewrite VarSet.union_spec.
+    + right. assumption.
+    + left. assumption.
+Qed.
