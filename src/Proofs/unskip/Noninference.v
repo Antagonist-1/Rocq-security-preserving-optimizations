@@ -18,53 +18,6 @@ Ltac solve_simple_assigns Hmatch:=
     eexists; split; eauto with unskip_db;
     unfold match_ctx; split; simpl; auto.
 
-(* Running an unoptimized program from matching contexts yields matching
-contexts. *)
-Lemma eval_trace_unopt_match : forall c ctx_src ctx_src_final ctx_opt,
-  eval_trace ctx_src c ctx_src_final ->
-  match_ctx ctx_src ctx_opt ->
-  exists ctx_opt_final,
-    eval_trace ctx_opt c ctx_opt_final /\
-    match_ctx ctx_src_final ctx_opt_final.
-Proof.
-  intros c ctx_src ctx_src_final ctx_opt Heval Hmatch.
-  revert ctx_opt Hmatch.
-  induction Heval; intros ctx_opt Hmatch; simpl;
-  try solve [ solve_simple_assigns Hmatch].
-  - (* Skip *)
-    eexists; split; eauto with unskip_db.
-  (* Assign, CmovTrue and CmovFalse solved by solve_ simple_assigns *)
-  - apply IHHeval1 in Hmatch as [ctx1_opt [Hstep1 Hmatch1]].
-    apply IHHeval2 in Hmatch1 as [ctx2_opt [Hstep2 Hmatch2]].
-    eexists; split; eauto with unskip_db.
-  - (* IfTrue *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
-    assert (Hmatch_branch : match_ctx (ctx t++ Branch true) (ctx_opt t++ Branch true)) 
-      by (split; auto; apply trace_subseq_append_keep; auto).
-    apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
-    rewrite Hval in *.
-    eexists; split; eauto with unskip_db.
-  - (* IfFalse *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
-    assert (Hmatch_branch : match_ctx (ctx t++ Branch false) (ctx_opt t++ Branch false)) 
-      by (split; auto; apply trace_subseq_append_keep; auto).
-    apply IHHeval in Hmatch_branch as [ctx_opt_final [Hstep Hmatch_final]].
-    rewrite Hval in *.
-    eexists; split; eauto with unskip_db.
-  - (* WhileTrue *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
-    assert (Hmatch_branch : match_ctx (ctx t++ Branch true) (ctx_opt t++ Branch true)) 
-      by (split; auto; apply trace_subseq_append_keep; auto).
-    apply IHHeval1 in Hmatch_branch as [ctx_opt_mid [Hstep1 Hmatch_mid]].
-    apply IHHeval2 in Hmatch_mid as [ctx_opt_final [Hstep2 Hmatch_final]].
-    rewrite Hval in *.
-    eexists; split; eauto with unskip_db.
-  - (* WhileFalse *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace];
-    rewrite Hval in *.
-    eexists; split; eauto with unskip_db.
-    unfold match_ctx; split; simpl; auto; apply trace_subseq_append_keep; auto.
-Qed.
 
 Lemma opt_unskip_forward : forall c ctx_src ctx_src_final ctx_opt,
   eval_trace ctx_src c ctx_src_final ->
@@ -175,92 +128,6 @@ Proof.
 Qed.
 
 
-Lemma eval_trace_unopt_backward : forall c ctx_opt ctx_opt_final ctx_src,
-  eval_trace ctx_opt c ctx_opt_final ->
-  match_ctx ctx_src ctx_opt ->
-  exists ctx_src_final,
-    eval_trace ctx_src c ctx_src_final /\
-    match_ctx ctx_src_final ctx_opt_final.
-Proof.
-  intros c ctx_opt ctx_opt_final ctx_src Heval Hmatch.
-  revert ctx_src Hmatch.
-  induction Heval; intros ctx_src Hmatch.
-  
-  - (* Skip *)
-    exists ctx_src; split; [apply EvalTraceSkip | exact Hmatch].
-    
-  - (* Assign *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    exists (ctx_src v$+ (x, a)); split.
-    + eapply EvalTraceAssign; rewrite Hval; eassumption.
-    + unfold match_ctx; split; simpl; auto; rewrite Hval; auto.
-    
-  - (* CmovTrue *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    exists (ctx_src v$+ (x, a1)); split.
-    + eapply EvalTraceCmovTrue; destruct ctx_src as [v_src t_src]; simpl in *;
-      rewrite Hval; eassumption.
-    + unfold match_ctx; split; simpl; auto; rewrite Hval; auto.
-
-  - (* CmovFalse *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    exists (ctx_src v$+ (x, a2)); split.
-    + eapply EvalTraceCmovFalse; destruct ctx_src as [v_src t_src]; simpl in *;
-      rewrite Hval; eassumption.
-    + unfold match_ctx; split; simpl; auto; rewrite Hval; auto.
-
-  - (* Sequence *)
-    edestruct IHHeval1 as [ctx_src_mid [Hstep1 Hmatch1]]; [exact Hmatch |].
-    edestruct IHHeval2 as [ctx_src_final [Hstep2 Hmatch_final]]; [exact Hmatch1 |].
-    exists ctx_src_final; split.
-    + eapply EvalTraceSequence; eassumption.
-    + exact Hmatch_final.
-
-  - (* IfTrue *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    assert (Hmatch_branch : match_ctx (ctx_src t++ Branch true) (ctx t++ Branch true))
-      by (split; simpl; auto; apply trace_subseq_append_keep; auto).
-    edestruct IHHeval as [ctx_src_final [Hstep Hmatch_final]]; [exact Hmatch_branch |].
-    exists ctx_src_final; split.
-    + eapply EvalTraceIfTrue.
-      * rewrite Hval. eassumption.
-      * eassumption.
-      * exact Hstep.
-    + exact Hmatch_final.
-
-  - (* IfFalse *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    assert (Hmatch_branch : match_ctx (ctx_src t++ Branch false) (ctx t++ Branch false))
-      by (split; simpl; auto; apply trace_subseq_append_keep; auto).
-    edestruct IHHeval as [ctx_src_final [Hstep Hmatch_final]]; [exact Hmatch_branch |].
-    exists ctx_src_final; split.
-    + eapply EvalTraceIfFalse.
-      * rewrite Hval. eassumption.
-      * exact Hstep.
-    + exact Hmatch_final.
-
-  - (* WhileTrue *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    assert (Hmatch_branch : match_ctx (ctx_src t++ Branch true) (ctx t++ Branch true))
-      by (split; simpl; auto; apply trace_subseq_append_keep; auto).
-    edestruct IHHeval1 as [ctx_src_mid [Hstep1 Hmatch1]]; [exact Hmatch_branch |].
-    edestruct IHHeval2 as [ctx_src_final [Hstep2 Hmatch_final]]; [exact Hmatch1 |].
-    exists ctx_src_final; split.
-    + eapply EvalTraceWhileTrue.
-      * rewrite Hval. eassumption.
-      * eassumption.
-      * exact Hstep1.
-      * exact Hstep2.
-    + exact Hmatch_final.
-
-  - (* WhileFalse *)
-    unfold match_ctx in Hmatch; destruct Hmatch as [Hval Htrace].
-    assert (Hmatch_branch : match_ctx (ctx_src t++ Branch false) (ctx t++ Branch false))
-      by (split; simpl; auto; apply trace_subseq_append_keep; auto).
-    exists (ctx_src t++ Branch false); split.
-    + eapply EvalTraceWhileFalse. rewrite Hval. eassumption.
-    + exact Hmatch_branch.
-Qed.
 
 Lemma opt_unskip_backward_while : forall e body ctx_opt ctx_opt_final ctx_src,
   eval_trace ctx_opt (While e (opt_unskip_cmd body)) ctx_opt_final ->
@@ -636,39 +503,6 @@ Proof.
     eapply EvalTraceWhileFalse. exact H.
 Qed.
 
-Lemma eval_trace_equal_rebased : forall c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2
-    ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out,
-  eval_trace ctx_src1 c ctx_src1_out ->
-  eval_trace ctx_src2 c ctx_src2_out ->
-  eval_trace ctx_opt1 c ctx_opt1_out ->
-  eval_trace ctx_opt2 c ctx_opt2_out ->
-  val_of ctx_src1 = val_of ctx_opt1 ->
-  val_of ctx_src2 = val_of ctx_opt2 ->
-  trace_of ctx_src1 = trace_of ctx_src2 ->
-  trace_of ctx_opt1 = trace_of ctx_opt2 ->
-  trace_of ctx_src1_out = trace_of ctx_src2_out ->
-  trace_of ctx_opt1_out = trace_of ctx_opt2_out.
-Proof.
-  intros c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2
-    ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out
-    Hsrc1 Hsrc2 Hopt1 Hopt2 Hval1 Hval2 Hstart_src Hstart_opt Hout_src.
-  destruct (eval_trace_rebase _ _ _ Hsrc1 (trace_of ctx_opt1))
-    as [suffix1 [Hsuffix1 Hrebase1]].
-  destruct (eval_trace_rebase _ _ _ Hsrc2 (trace_of ctx_opt2))
-    as [suffix2 [Hsuffix2 Hrebase2]].
-  destruct ctx_src1 as [v_src1 t_src1], ctx_src2 as [v_src2 t_src2].
-  destruct ctx_opt1 as [v_opt1 t_opt1], ctx_opt2 as [v_opt2 t_opt2].
-  simpl in *; subst v_opt1 v_opt2.
-  assert (Heq1 : ctx_opt1_out = (val_of ctx_src1_out, t_opt1 ++ suffix1)).
-  { eapply eval_trace_deterministic; eauto. }
-  assert (Heq2 : ctx_opt2_out = (val_of ctx_src2_out, t_opt2 ++ suffix2)).
-  { eapply eval_trace_deterministic; eauto. }
-  rewrite Heq1, Heq2. simpl.
-  rewrite Hsuffix1, Hsuffix2 in Hout_src.
-  rewrite Hstart_src in Hout_src.
-  apply app_inv_head in Hout_src.
-  rewrite Hstart_opt, Hout_src. reflexivity.
-Qed.
 
 Ltac contradict_branch_traces Hstep1 Hstep2 Hstart Hout :=
   let tail1 := fresh "tail1" in let Htail1 := fresh "Htail1" in
