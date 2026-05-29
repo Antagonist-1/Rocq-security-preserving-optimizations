@@ -26,5 +26,6 @@ Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
       While e (dse_helper body (liveness c out))
   end.
 
+(* wrapper for Secure Dead Store Elimination*)
 Definition opt_dse (pgm: program): program :=
   (opt_unskip_cmd (dse_helper (cmd_of pgm) (output_of pgm)), output_of pgm).

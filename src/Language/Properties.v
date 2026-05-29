@@ -12,6 +12,7 @@ Import ListNotations.
 Definition agree_on_public (secrets : var_set) (v1 v2 : valuation) : Prop :=
   forall x, not (VarSet.In x secrets) -> v1 $? x = v2 $? x.
 
+(* All secrets in sec_env have the same value *)
 Definition agree_on_secret (se : sec_env) (v1 v2 : valuation) : Prop :=
   forall x, sec_lookup se x = Secret -> v1 $? x = v2 $? x.
 
@@ -27,31 +28,15 @@ Proof.
   exact Hsecret.
 Qed.
 
-(* Another way is to say that two valuations are low-equivalent, meaning they agree on all public variables *)
-Definition low_equiv := agree_on_public.
-
-
 (* Constant-time semantics.
 
-   Unlike [eval] and [eval_sec], this relation does not execute a command to a
-   final valuation.  Instead, it checks whether the command is well-labeled with
-   respect to constant-time discipline, threading only a security environment.
+   Unlike [eval], [eval_trace] and [eval_sec], this relation does not execute a command to a
+   final valuation.  Instead, it checks statically whether the command is well-labeled with
+   respect to constant-time discipline, carrying only a security environment.
 
-   The structural rules [CtSkip] and [CtSequence] mirror the corresponding rules
-   in the evaluation relations, but over [sec_env] instead of execution contexts.
+   ct_cmd propagates security levels of each variable, and ensure that no branching is done on secrets (except using cmov). Otherwise, side channel attacks could be performed, by comparing the execution time between different secrets.
 
-   [CtAssign] updates the assigned variable with the label computed by
-   [interp_sec], recording how information may flow through the assignment.
-
-   The new constant-time condition appears in [CtIf]: the guard must satisfy
-   [interp_sec e se = Public], ensuring that branching does not depend on secret
-   data.  Both branches are checked, and their resulting environments are joined
-   with [join_sec_env].
-
-   [CtWhile] similarly requires the loop guard to be public, but also adds the
-   invariant premise [join_sec_env se se_inv = se_inv].  This ensures that the
-   loop body is checked in a security environment stable enough to soundly model
-   any number of iterations.
+  CtWhile: security levels under a while loop could take time to stabilize. We must make sure that secrecy is propagated correctly, no matter the amount of loop iterations.
  *)
 Inductive ct_cmd : sec_env -> cmd -> sec_env -> Prop :=
   | CtSkip : forall se,
@@ -89,12 +74,6 @@ Inductive ct_cmd : sec_env -> cmd -> sec_env -> Prop :=
 
 (* If two valuations agree on public data, then running the same program on them
 should produce the same trace.
-Note 1: The initial trace has to be nonempty. This is necessary to prove the
-sequence case, as the second statement won't always start with an empty trace.
-Note 2: Also for the sequence proof, we have to strengthen the definition by
-saying that the resulting context agrees on public variables, as in the sequence
-case, the second statement doesn't start with the same context.
-In both cases, we only strengthen the definition, so it is not a problem.
  *)
 Definition non_inference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
   forall v1 v2 t_in final_v1 final_v2 trace1 trace2,
@@ -105,7 +84,7 @@ Definition non_inference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
 
 
 
-(* trace is independent of secrets *)
+(* A safe program is defined as a non-inferent program *)
 Definition is_safe_pgm (pgm: program) (secrets: sec_env): Prop :=
   exists secrets',
     non_inference secrets (cmd_of pgm) secrets'.
@@ -115,7 +94,8 @@ Definition is_safe_pgm (pgm: program) (secrets: sec_env): Prop :=
 
   (* if both programs start with the same context (valuation+secrets),
       1. the resulting set of secrets are the same (secrets propagated correctly)
-      2. AND both valuation agree on the value of secrets (all secure assigns are kept)
+      AND
+      2. both valuation agree on the value of secrets (secure assigns are kept)
   *)
 Definition opt_keeps_secrets_secret (opt : program -> sec_env -> program) : Prop :=
   forall sctx sctx' sctx'' pgm pgm',
@@ -125,7 +105,7 @@ Definition opt_keeps_secrets_secret (opt : program -> sec_env -> program) : Prop
     forall x, sec_lookup (sec_of sctx') x = sec_lookup (sec_of sctx'') x /\
     agree_on_secret (sec_of sctx') (sec_val_of sctx') (sec_val_of sctx'').
 
-
+(* TODO explain better this*)
 (* very weak soundness condition, ignoring soundness of the opti in terms of correct output values, this lemma is only here to produce the intermeidate sctx for the proof of composition . *) 
 Definition opt_eval_sec_sound (opt : program -> sec_env -> program) : Prop :=
   forall sctx sctx' pgm,
@@ -133,6 +113,8 @@ Definition opt_eval_sec_sound (opt : program -> sec_env -> program) : Prop :=
     exists sctx_opt,
       eval_sec sctx (cmd_of (opt pgm (sec_of sctx))) sctx_opt.
 
+
+(* Composing optimizations to create a new optimization *)
 Definition compose_opt
     (opt2 opt1 : program -> sec_env -> program)
     (pgm : program)
@@ -140,9 +122,8 @@ Definition compose_opt
   opt2 (opt1 pgm secrets) secrets.
 
 
-
-(*A safe optimization:
-  1. transform a safe program into another safe program
+(*We define a safe optimization as an opt. that:
+  1. transforms a safe program into another safe program
   2. doesn't change the value or sec_level of secrets, compared to the source program.
 *)
 Definition is_safe_opt (opt: program -> sec_env -> program): Prop :=
@@ -150,6 +131,7 @@ Definition is_safe_opt (opt: program -> sec_env -> program): Prop :=
     is_safe_pgm p secrets -> is_safe_pgm (opt p secrets) secrets) /\
     opt_keeps_secrets_secret opt.
 
+(* A composition of safe optimization is a safe optimization.*)
 Theorem is_safe_opt_compose : forall opt1 opt2,
   is_safe_opt opt1 ->
   is_safe_opt opt2 ->

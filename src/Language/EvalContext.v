@@ -7,13 +7,15 @@ Import ListNotations.
 
 Definition valuation := fmap var nat.
 
+(* We defined a trace event to be only branches. In the future, we could also add memory accesses*)
 Inductive trace_event :=
-| Branch: bool -> trace_event
-| MemWrite: var -> trace_event.
+| Branch: bool -> trace_event.
 
 (*
-  We define two different context, one for standard execution (with valuation and trace) 
-  and one that also carries secrets, used to check if a program is secure
+
+  We define two different context, one for traced execution (valuation and trace) 
+  and one that also carries secrets, used to check if a program is secure.
+  Standard execution only uses valuations
  *)
 Definition context := (valuation * list trace_event)%type.
 Definition sec_context := (valuation * sec_env * list trace_event)%type.

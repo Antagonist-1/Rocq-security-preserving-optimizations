@@ -4,7 +4,7 @@ Require Import Language.Syntax.
 
 
 
-(* Define security levels for variables as either Public or Secret *)
+(* Variables can be either Public or Secret *)
 Inductive sec_level :=
 | Public
 | Secret.
@@ -33,10 +33,11 @@ Definition sec_lookup (se : sec_env) (x : var) : sec_level :=
   | false => Public
   end.
 
+(* This helper makes eval more readable *)
 Definition update_sec (se : sec_env) (x: var) (level: sec_level) : sec_env :=
   match level with
   | Secret => VarSet.add x se
-  | Public => VarSet.remove x se
+  | Public => VarSet.remove x se (* If was previously Secret, we overwrite the label and remove from the Set *)
   end.
 
 Definition senv_mk0 := VarSet.empty.
@@ -59,10 +60,6 @@ Definition senv_mk3 (x1 x2 x3: var) (l1 l2 l3: sec_level) :=
 Definition join_sec_env (se1 se2 : sec_env) : sec_env :=
   VarSet.union se1 se2.
 
-
-Definition is_secret (se : sec_env) (x : var) : Prop :=
-  sec_lookup se x = Secret.
-
 (*
   Compute the security level of an expression, given a security environment.
    Using join_sec to combine the security levels of subexpressions.
@@ -73,5 +70,3 @@ Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
   | Var x => sec_lookup se x
   | Binop _ e1 e2 => join_sec (interp_sec e1 se) (interp_sec e2 se)
   end.
-
-(* Could prove keys equivalence betweeen sec_env fmap and val fmap *)

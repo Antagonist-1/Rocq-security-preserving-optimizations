@@ -7,28 +7,6 @@ Require Import Proofs.VarSetAgreement.
 From Stdlib Require Import Lia.
 
 
-Lemma interp_arith_agree: forall e v1 v2,
-  agree_on (vars_in_expr e) v1 v2 ->
-  interp_arith e v1 = interp_arith e v2.
-Proof.
-  unfold agree_on.
-  induction e; simpl; intros.
-  - reflexivity.
-  - rewrite H.
-    reflexivity.
-    rewrite VarSet.mem_spec.
-    rewrite VarSet.singleton_spec.
-    reflexivity.
-  - erewrite IHe1.
-    erewrite IHe2.
-    1: reflexivity.
-    1,2: intros;
-      apply H;
-      rewrite VarSet.mem_spec in *;
-      rewrite VarSet.union_spec.
-    + right. assumption.
-    + left. assumption.
-Qed.
 
 Ltac solve_dse_cmov_interp H_agree :=
   match goal with
@@ -37,6 +15,7 @@ Ltac solve_dse_cmov_interp H_agree :=
       eapply agree_on_subset; [| apply agree_on_sym; exact H_agree]; VarSetDecide.fsetdec
   end.
 
+  (* out is added at each iteration of the fixpoint.*)
 Lemma while_fixpoint_contains_out: forall f cond_vars out fuel,
   VarSet.Subset out (while_fixpoint f cond_vars out fuel).
 Proof.
@@ -52,6 +31,9 @@ Proof.
       * apply IHfuel.
 Qed.
 
+(* if reached fixpoint, the fixpoint helper exits
+  useful to generalize for any fuel
+*)
 Lemma while_fixpoint_at_fixpoint: forall f cond_vars out fuel,
   VarSet.equal out (VarSet.union (VarSet.union out cond_vars) (f out)) = true ->
   while_fixpoint f cond_vars out fuel = out.
@@ -61,6 +43,8 @@ Proof.
   - rewrite H. reflexivity.
 Qed.
 
+(* if function passed to fixpoint is monotone, then fixpoint itself is monotone. *)
+(* Note that the only method passed to fixpoint is liveness, but we generalized it anyway here. *)
 Lemma while_fixpoint_monotone: forall f cond_vars out1 out2 fuel,
   (forall s1 s2, VarSet.Subset s1 s2 -> VarSet.Subset (f s1) (f s2)) ->
   VarSet.Subset out1 out2 ->
@@ -105,6 +89,8 @@ Proof.
     + apply IHfuel. exact H_in.
 Qed.
 
+
+(* the fixpoint is bound by all variables used in the while. This gives a maximum amount of iterations (fuel)*)
 Lemma while_fixpoint_vars_bound: forall f cond_vars out fuel universe,
   VarSet.Subset out universe ->
   VarSet.Subset cond_vars universe ->
@@ -126,6 +112,9 @@ Proof.
         VarSetDecide.fsetdec.
 Qed.
 
+(* applying the previous lemma in the specific case of f=liveness.
+  We could actually skip the generalization from before. but fixpoint could be used in later optimizations.
+*)
 Lemma liveness_vars_bound: forall c out,
   VarSet.Subset (liveness c out) (VarSet.union out (vars_in_cmd c)).
 Proof.
@@ -150,6 +139,7 @@ Proof.
       VarSetDecide.fsetdec.
 Qed.
 
+(* At each iteration (except last), the variables used in cond are added to the fixpoint output*)
 Lemma while_fixpoint_contains_cond_vars: forall f cond_vars out fuel,
     fuel > 0 ->
   VarSet.Subset cond_vars (while_fixpoint f cond_vars out fuel).
@@ -169,6 +159,7 @@ Proof.
       lia.
 Qed.
 
+(* Applying the previous lemma for liveness*)
 Lemma liveness_while_cond_subset : forall body e out,
   VarSet.Subset (vars_in_expr e) (liveness (While e body) out).
 Proof.
@@ -178,6 +169,12 @@ Proof.
   - apply while_fixpoint_contains_cond_vars. lia.
 Qed.
 
+(* Useful lemma to help with termination in fixpoint:
+  The remaining set (VarSet.diff universe out) shrinks, 
+  by taking x from _in and adding it to out.
+  
+  _in represent the result in the next iteration. 
+  *)
 Lemma cardinal_diff_with_witness : forall universe out _in x,
   VarSet.In x universe ->
   VarSet.In x _in ->
@@ -188,6 +185,7 @@ Proof.
   intros. apply vsp.subset_cardinal_lt with x; VarSetDecide.fsetdec.
 Qed.
 
+(* Main lemma for while liveness: we can reach fixpoint with the right amount of fuel*)
 Lemma while_fixpoint_is_fixpoint: forall body e out n,
   VarSet.cardinal (VarSet.diff (VarSet.union (vars_in_expr e) (vars_in_cmd body)) out) <= n ->
   let fp := while_fixpoint (liveness body) (vars_in_expr e) out n in
@@ -224,6 +222,7 @@ Proof.
         congruence.
 Qed.
 
+(* wrapper for the previous lemma: apply liveness twice to a While doesn't change anything *)
 Lemma liveness_while_body_closed : forall body e out,
   VarSet.Subset (liveness body (liveness (While e body) out)) (liveness (While e body) out).
 Proof.

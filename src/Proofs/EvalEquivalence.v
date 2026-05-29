@@ -1,5 +1,7 @@
 Require Import Language.Main.
 
+(* These theorems shows equivalence between the 3 eval inductives we created. It does so by either lifting them (by adding a trace or a sec_env to its context), or projecting them (by removing the trace or sec_env) *)
+
 
 Create HintDb eval_db.
 Hint Constructors eval eval_trace eval_sec : eval_db.
@@ -7,8 +9,11 @@ Hint Constructors eval eval_trace eval_sec : eval_db.
 Ltac eval_simpl :=
   unfold val_of, trace_of, sec_val_of, sec_trace_of, sec_of in *; simpl in *.
 
+(*
+PROJECTING THEOREMS
+*)
 
-
+(* eval_trace -> eval *)
 Theorem Eval_proj_trace : forall ctx c ctx',
     eval_trace ctx c ctx' -> 
     eval (val_of ctx) c (val_of ctx').
@@ -16,14 +21,16 @@ Proof.
   induction 1; eval_simpl; eauto with eval_db.
 Qed.
 
-
+(* eval_sec -> eval_trace *)
 Theorem Eval_proj_sec : forall ctx c ctx',
     eval_sec ctx c ctx' ->
     eval_trace (sec_val_of ctx, sec_trace_of ctx) c (sec_val_of ctx', sec_trace_of ctx').
+
 Proof.
   induction 1; eval_simpl; eauto with eval_db.
 Qed.
 
+(* eval_sec -> eval *)
 Theorem Eval_proj_sec_trace : forall ctx c ctx',
     eval_sec ctx c ctx' ->
     eval (sec_val_of ctx) c (sec_val_of ctx').
@@ -39,6 +46,7 @@ LIFTING THEOREMS
 *)
 
 
+(* eval -> eval_trace *)
 Theorem Eval_lift_trace : forall v c v',
     eval v c v' ->
     forall t, exists t',
@@ -65,6 +73,7 @@ Proof.
   - eexists. apply EvalTraceWhileFalse; eauto.
 Qed.
 
+(* eval_trace -> eval_sec *)
 Theorem Eval_lift_sec : forall v t c v' t',
     eval_trace (v, t) c (v', t') ->
     forall sec, exists sec',
@@ -105,6 +114,7 @@ Proof.
 Qed.
 
 
+(* eval -> eval_sec *)
 Theorem Eval_lift_trace_sec : forall v c v',
     eval v c v'->
     forall sec t, exists sec' t',

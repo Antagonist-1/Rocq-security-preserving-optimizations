@@ -3,6 +3,8 @@ From Stdlib Require Export Program.Equality.
 Require Import Map.
 From Stdlib Require Import String.
 
+(* The core of syntax and semantics were taken from Lab 6 from the CS-428 course *)
+
 Arguments N.add : simpl nomatch.
 Arguments N.sub : simpl nomatch.
 Arguments N.mul : simpl nomatch.
@@ -20,11 +22,6 @@ String Notation var string_of_list_byte list_byte_of_string: var_scope.
 Open Scope var_scope.
 
 (** ** Language definition *)
-
-(** We'll start with a variant of an usual imperative language, with a few
-    twists: first, we'll generalize the [Plus] constructor, allowing a number of
-    binary operators.  Second, we'll add function calls (for simplicity, all
-    functions take two arguments, and they assign their results to variables). *)
 
 Inductive BinopName :=
 | LogAnd 
@@ -55,11 +52,6 @@ Delimit Scope expr with expr.
 
 Coercion Const : nat >-> expr.
 Coercion Var : var >-> expr.
-
-(** The coercions defined in the previous section make programs easier to write by
-    allowing to write [x] for [Var x] and [n] for [Const n], but they can be
-    confusing when reading programs or proving properties, so the following line
-    turns them off: *)
 
 Set Printing Coercions.
 
