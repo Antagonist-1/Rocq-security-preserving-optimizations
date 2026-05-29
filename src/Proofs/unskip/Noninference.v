@@ -584,12 +584,12 @@ Proof.
   - reflexivity.
 Qed.
 
-(** ** Main theorem of non-inference preservation *)
+(* Main theorem of non-inference preservation *)
 
-(** [opt_unskip_preserves_safe_pgm] proves the non-inference half of
-    [is_safe_opt]. [opt_unskip_backward] expands optimized executions into
-    matching source executions; [opt_traces_equal] then transfers source trace
-    equality to the optimized runs. *)
+(* [opt_unskip_preserves_safe_pgm] proves the non-inference half of
+   [is_safe_opt]. [opt_unskip_backward] expands optimized executions into
+   matching source executions; [opt_traces_equal] then transfers source trace
+   equality to the optimized runs. *)
 Lemma opt_unskip_preserves_safe_pgm : forall p secrets,
   is_safe_pgm p secrets ->
   is_safe_pgm (opt_unskip p secrets) secrets.
