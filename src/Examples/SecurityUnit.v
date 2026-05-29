@@ -73,10 +73,9 @@ Example ct_secret_guard_program_rejected :
 Proof.
   intros [se' Hct].
   inversion Hct; subst.
-  match goal with | H : interp_sec _ _ = Public |- _ => rename H into Hguard end.
-  unfold interp_sec, sec_lookup in Hguard.
-  cbn in Hguard.
-  autorewrite with core in Hguard.
+  unfold interp_sec, sec_lookup in H2.
+  cbn in H2.
+  autorewrite with core in H2.
   discriminate.
 Qed.
 
@@ -158,26 +157,18 @@ Proof.
   (* Assume the checker somehow accepted this dangerous loop *)
   intros [se' Hct].
   inversion Hct; subst.
-  match goal with | H : VarSet.Equal (join_sec_env (senv_mk1 "secret" Secret) _) _ |- _ => rename H into Hinv end.
-  match goal with | H : context[interp_sec] |- _ => rename H into Hguard end.
   (* Simplify the public guard requirement *)
-  unfold interp_sec, sec_lookup in Hguard. cbn in Hguard.
+  unfold interp_sec, sec_lookup in H2. cbn in H2.
   (* We need to prove se_inv knows "secret" is Secret. We extract this fact
   directly from the initial bound. *)
   assert (Hleak: sec_lookup (join_sec_env (senv_mk1 "secret" Secret) se') "secret" = sec_lookup se' "secret").
-  { unfold sec_lookup.
-    destruct (VarSet.mem "secret" (join_sec_env (senv_mk1 "secret" Secret) se')) eqn:H1;
-    destruct (VarSet.mem "secret" se') eqn:H2; try reflexivity.
-    - apply VarSet.mem_spec in H1. rewrite Hinv in H1.
-      rewrite <- VarSet.mem_spec in H1. congruence.
-    - apply VarSet.mem_spec in H2. rewrite <- Hinv in H2.
-      rewrite <- VarSet.mem_spec in H2. congruence. }
+  { unfold sec_lookup. rewrite H1. reflexivity. }
   (* Evaluate the join on the left side using the helper lemma we just built! *)
   rewrite lookup_join_env in Hleak.
   unfold sec_lookup in Hleak at 1. autorewrite with core in *. cbn in *.
-  (* Hguard is exactly the definition of `sec_lookup se' "secret" = Public`! *)
-  fold (sec_lookup se' "secret") in Hguard.
-  rewrite Hguard in Hleak.
+  (* H2 is exactly the definition of `sec_lookup se' "secret" = Public`! *)
+  fold (sec_lookup se' "secret") in H2.
+  rewrite H2 in Hleak.
   discriminate.
 Qed.
 
@@ -192,19 +183,10 @@ Proof.
   intros [se' Hct].
   (* Break open the While loop rule *)
   inversion Hct; subst.
-  match goal with | H : VarSet.Equal (join_sec_env (senv_mk2 "secret" "x" Secret Public) _) _ |- _ => rename H into Hinv end.
-  match goal with | H : context[interp_sec] |- _ => rename H into Hguard end.
-  match goal with | H : ct_cmd _ (Assign _ _) _ |- _ => rename H into Hbody end.
-  unfold interp_sec in Hguard; cbn in Hguard.
-  (* Prove that se' knows 'secret' is Secret (extracted from Hinv) *)
+  unfold interp_sec in H2; cbn in H2.
+  (* Prove that se' knows 'secret' is Secret (extracted from H1) *)
   assert (Hsec: sec_lookup (join_sec_env (senv_mk2 "secret" "x" Secret Public) se') "secret" = sec_lookup se' "secret").
-  { unfold sec_lookup.
-    destruct (VarSet.mem "secret" (join_sec_env (senv_mk2 "secret" "x" Secret Public) se')) eqn:H1;
-    destruct (VarSet.mem "secret" se') eqn:H2; try reflexivity.
-    - apply VarSet.mem_spec in H1. rewrite Hinv in H1.
-      rewrite <- VarSet.mem_spec in H1. congruence.
-    - apply VarSet.mem_spec in H2. rewrite <- Hinv in H2.
-      rewrite <- VarSet.mem_spec in H2. congruence. }
+  { unfold sec_lookup. rewrite H1. reflexivity. }
   rewrite lookup_join_env in Hsec.
   unfold sec_lookup in Hsec at 1. cbn in Hsec. autorewrite with core in Hsec.
   (* Destruct forces Coq to realize se' "secret" MUST be Secret, otherwise the
@@ -212,24 +194,12 @@ Proof.
   destruct (sec_lookup se' "secret") eqn:Hsecret_val;
   cbn in Hsec; [ discriminate |  ].
   (* Break open the Assign rule inside the body *)
-  inversion Hbody; subst.
-  match goal with
-  | H : VarSet.Equal _ _ |- _ =>
-    match type of H with
-    | context[update_sec] => rename H into Hupdate
-    end
-  end.
-  (* The preservation rule checks if the invariant survived. *)
+  inversion H4; subst.
+
   assert (Hpres: sec_lookup (join_sec_env se' (update_sec se' "x" (interp_sec "secret" se'))) "x" = sec_lookup se' "x").
-  { unfold sec_lookup.
-    destruct (VarSet.mem "x" (join_sec_env se' (update_sec se' "x" (interp_sec "secret" se')))) eqn:H1;
-    destruct (VarSet.mem "x" se') eqn:H2; try reflexivity.
-    - apply VarSet.mem_spec in H1. rewrite Hupdate in H1.
-      rewrite <- VarSet.mem_spec in H1. congruence.
-    - apply VarSet.mem_spec in H2. rewrite <- Hupdate in H2.
-      rewrite <- VarSet.mem_spec in H2. congruence. }
+  { unfold sec_lookup. rewrite H6. reflexivity. }
   rewrite lookup_join_env in Hpres.
-  rewrite Hguard in Hpres.
+  rewrite H2 in Hpres.
   unfold interp_sec in Hpres. cbn in Hpres.
   rewrite Hsecret_val in Hpres.
   unfold sec_lookup in Hpres at 1. autorewrite with core in Hpres.
@@ -248,9 +218,8 @@ Example ct_old_secret_branch_rejected :
 Proof.
   intros [se' Hct].
   inversion Hct; subst.
-  match goal with | H : interp_sec _ _ = Public |- _ => rename H into Hguard end.
-  unfold interp_sec, sec_lookup in Hguard. cbn in Hguard.
-  autorewrite with core in Hguard.
+  unfold interp_sec, sec_lookup in H2. cbn in H2.
+  autorewrite with core in H2.
   discriminate.
 Qed.
 
