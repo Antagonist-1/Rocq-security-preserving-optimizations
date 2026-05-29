@@ -297,10 +297,9 @@ Ltac kill_trace_contra Hstart Heq :=
       apply branch_contradiction in Heq; discriminate Heq
   end.
 
-(* Trace Alignment Lemma: Because traces only append (monotonicity), if two
-   executions of `c` start with equal traces and end with traces that share a
-   tail, their traces must have remained synchronized at every intermediate
-   evaluation step. *)
+(* Because traces only append, if two executions of `c` start with equal traces
+   and end with traces that share a tail, their traces must have remained
+   synchronized at every intermediate evaluation step. *)
 Lemma eval_trace_sync : forall ctx1 c ctx1_out,
   eval_trace ctx1 c ctx1_out ->
   forall ctx2 ctx2_out tail1 tail2,
@@ -375,10 +374,10 @@ Proof.
   exact Hmatch_out.
 Qed.
 
-(** The Core Non-Inference Invariant: If two source executions agree on their
-      output traces, then their optimized versions must also agree on their
-      output traces. Proved by induction on the source trace execution, relying
-      on `eval_trace_sync` to match intermediate traces *)
+(* If two source executions agree on their output traces, then their optimized
+   versions must also agree on their output traces. Proved by induction on the
+   source trace execution, relying on `eval_trace_sync` to match intermediate
+   traces *)
 Lemma opt_traces_equal_gen : forall c ctx_src1 ctx_src2 ctx_opt1 ctx_opt2
     ctx_src1_out ctx_src2_out ctx_opt1_out ctx_opt2_out,
   eval_trace ctx_src1 c ctx_src1_out ->
