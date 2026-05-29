@@ -13,7 +13,7 @@ Ltac crush_security :=
 
 (* `eval_sec`: copying a secret value taints the destination as `Secret`. *)
 Example eval_sec_secret_copy_taints_x :
-  eval_sec $0
+  eval_sec
     (($0 $+ ("secret", 7)), senv_mk1 "secret" Secret, nil)
     secret_copy
     (($0 $+ ("secret", 7) $+ ("x", 7)), senv_mk2 "secret" "x" Secret Secret, nil).
@@ -23,7 +23,7 @@ Qed.
 
 (* `eval_sec`: when the source has no security label, the destination defaults to `Public`. *)
 Example eval_sec_secret_copy_defaults_to_public :
-  eval_sec $0
+  eval_sec
     (($0 $+ ("secret", 7)), senv_mk0, nil)
     secret_copy
     (($0 $+ ("secret", 7) $+ ("x", 7)), senv_mk1 "x" Public, nil).
@@ -33,7 +33,7 @@ Qed.
 
 (* `eval_sec`: overwriting a secret-labeled variable with a constant makes it Public. *)
 Example eval_sec_secret_overwritten_with_const_is_public :
-  eval_sec $0
+  eval_sec
     (($0 $+ ("x", 7)), senv_mk1 "x" Secret, nil)
     secret_overwritten_with_const
     (($0 $+ ("x", 7) $+ ("x", 0)), senv_mk2 "x" "x" Secret Public, nil).
@@ -43,7 +43,7 @@ Qed.
 
 (* `eval_sec`: overwriting a secret-labeled variable with a public variable makes it Public. *)
 Example eval_sec_secret_overwritten_with_public_var_is_public :
-  eval_sec $0
+  eval_sec
     (($0 $+ ("x", 7) $+ ("flag", 42)), senv_mk2 "x" "flag" Secret Public, nil)
     secret_overwritten_with_public_var
     (($0 $+ ("x", 7) $+ ("flag", 42) $+ ("x", 42)), senv_mk3 "x" "flag" "x" Secret Public Public, nil).
@@ -54,7 +54,7 @@ Qed.
 (* `ct_cmd`: branching on a public guard is accepted by the constant-time checker. *)
 Example ct_public_guard_program_ok :
   exists se',
-    ct_cmd $0
+    ct_cmd
       (senv_mk1 "flag" Public)
       public_guard_program
       se'.
@@ -66,7 +66,7 @@ Qed.
 (* `ct_cmd`: branching on a secret guard is rejected by the constant-time checker. *)
 Example ct_secret_guard_program_rejected :
   ~ exists se',
-      ct_cmd $0
+      ct_cmd
         (senv_mk1 "secret" Secret)
         secret_guard_program
         se'.
@@ -83,7 +83,7 @@ Qed.
 still taints `x` as `Secret`. *)
 Example ct_branch_join_marks_x_secret :
   exists se',
-    ct_cmd $0
+    ct_cmd
       (senv_mk2 "flag" "secret" Public Secret)
       branch_join_program
       se'
@@ -98,7 +98,7 @@ Qed.
 
 Example ct_simple_while_public_ok :
   exists se',
-    ct_cmd $0
+    ct_cmd
       (senv_mk1 "x" Public)
       simple_while
       se'.
@@ -113,7 +113,7 @@ Qed.
 
 Example ct_secret_downgrade_loop_ok :
   exists se',
-    ct_cmd $0
+    ct_cmd
       (senv_mk2 "flag" "secret" Public Secret)
       secret_downgrade_loop
       se'.
@@ -130,7 +130,7 @@ Qed.
 
 Example ct_fact_body_public_ok :
   exists se',
-    ct_cmd Fact_env
+    ct_cmd
       (senv_mk2 "n" "f" Public Public)
       FactBody
       se'.
@@ -149,7 +149,7 @@ Qed.
 
 Example ct_secret_loop_rejected :
   ~ exists se',
-    ct_cmd $0
+    ct_cmd
       (senv_mk1 "secret" Secret)
       secret_loop_program
       se'.
@@ -174,7 +174,7 @@ Qed.
 
 Example ct_public_to_secret_loop_rejected :
   ~ exists se',
-    ct_cmd $0
+    ct_cmd
       (senv_mk2 "secret" "x" Secret Public)
       public_to_secret_loop
       se'.
@@ -195,7 +195,7 @@ Proof.
   cbn in Hsec; [ discriminate |  ].
   (* Break open the Assign rule inside the body *)
   inversion H4; subst.
-  (* The preservation rule (H6) checks if the invariant survived. *)
+
   assert (Hpres: sec_lookup (join_sec_env se' (update_sec se' "x" (interp_sec "secret" se'))) "x" = sec_lookup se' "x").
   { unfold sec_lookup. rewrite H6. reflexivity. }
   rewrite lookup_join_env in Hpres.
@@ -211,7 +211,7 @@ Qed.
 (* Prove the old approach is rejected because If guards must be Public *)
 Example ct_old_secret_branch_rejected :
   ~ exists se',
-      ct_cmd $0
+      ct_cmd
         (senv_mk3 "secret_flag" "data1" "data2" Secret Public Public)
         old_secret_branch
         se'.
@@ -226,7 +226,7 @@ Qed.
 (* Prove the new approach is accepted, gracefully propagating the Secret label to "out" *)
 Example ct_new_cmov_branch_ok :
   exists se',
-      ct_cmd $0
+      ct_cmd
         (senv_mk3 "secret_flag" "data1" "data2" Secret Public Public)
         new_cmov_branch
         se'.

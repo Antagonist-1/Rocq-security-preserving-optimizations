@@ -4,10 +4,9 @@ Require Import Proofs.unskip.Noninference.
 Require Import Proofs.unskip.SecretPreservation.
 
 
-Theorem opt_unskip_secure : forall phi,
-  is_safe_opt phi opt_unskip.
+Theorem opt_unskip_secure :
+  is_safe_opt opt_unskip.
 Proof.
-  intros phi.
   unfold is_safe_opt.
   split.
   - apply opt_unskip_preserves_safe_pgm.

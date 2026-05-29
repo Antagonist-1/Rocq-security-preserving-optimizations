@@ -18,7 +18,7 @@ Example v1 := $0 $+ ("secret", 1).
 Example v2 := $0 $+ ("secret", 0).
 
 
-Goal ~ (is_safe_pgm $0 unsafe1 senv).
+Goal ~ (is_safe_pgm unsafe1 senv).
 Proof.  
     intros H.
     destruct H as [? Hct].
@@ -36,7 +36,7 @@ Proof.
      +  repeat rewrite lookup_add_ne by congruence.
         reflexivity.
     }
-    assert (Hpre2 : eval_trace $0 (v1, nil) secret_guard_program
+    assert (Hpre2 : eval_trace (v1, nil) secret_guard_program
             (v1 $+ ("x", 1), (Branch true :: nil)%list)).
     {
         eapply EvalTraceIfTrue.
@@ -47,7 +47,7 @@ Proof.
         constructor.
         reflexivity.
     }
-    assert (Hpre3 : eval_trace $0 (v2, nil) secret_guard_program
+    assert (Hpre3 : eval_trace (v2, nil) secret_guard_program
             (v2 $+ ("x", 0), (Branch false :: nil)%list)).
     {
         eapply EvalTraceIfFalse.
@@ -63,11 +63,11 @@ Qed.
 
 Example safe1 := single_out_pgm public_guard_program "x".
 
-Goal is_safe_pgm $0 safe1 VarSet.empty.
+Goal is_safe_pgm safe1 VarSet.empty.
 Proof.  
     unfold is_safe_pgm.
     eexists.
-    eassert (Hct : ct_cmd $0 VarSet.empty public_guard_program VarSet.empty).
+    eassert (Hct : ct_cmd VarSet.empty public_guard_program VarSet.empty).
     {
         unfold safe1, public_guard_program. simpl.
         econstructor.

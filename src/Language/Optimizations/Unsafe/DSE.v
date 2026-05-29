@@ -18,8 +18,6 @@ Fixpoint dse_helper (c: cmd) (out: var_set) : cmd :=
       | false => Skip
       | true => Cmov x cond e1 e2
       end
-        (*keep assigncalls for now, but they could be removed as in simple Assign*)
-  | AssignCall x f e1 e2 => AssignCall x f e1 e2
   | Sequence c1 c2 =>
       Sequence (dse_helper c1 (liveness c2 out)) (dse_helper c2 out)
   | If e thenC elseC =>

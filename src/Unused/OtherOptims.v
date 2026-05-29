@@ -55,7 +55,6 @@ match c with
 | Skip => Skip
 | Assign _ _ => c
 | Sequence c1 c2 => Sequence (opt_remove_branch c1) (opt_remove_branch c2)
-| AssignCall x f e1 e2 => AssignCall x f e1 e2
 | If cond thn els => match (opt_arith cond) with
                     | Const n => match n with
                                 | 0 => (opt_remove_branch els)

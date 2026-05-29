@@ -133,7 +133,6 @@ Proof.
   - VarSetDecide.fsetdec.
   - destruct (VarSet.mem s out) eqn:Hs.
     all: VarSetDecide.fsetdec.
-  - VarSetDecide.fsetdec.
   - destruct (VarSet.mem s out) eqn:Hs.
     all: VarSetDecide.fsetdec.
   - eapply vsp.subset_trans.

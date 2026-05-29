@@ -15,7 +15,7 @@ Ltac crush_eval :=
     | |- _ <> 0 => discriminate || congruence || lia
     | |- _ = _ => cbn; autorewrite with core; reflexivity
     | |- exists _ : valuation, _ => eexists; crush_eval_step
-    | |- eval_trace _ _ _ _ => econstructor; crush_eval_step
+    | |- eval_trace _ _ _ => econstructor; crush_eval_step
     end
   in crush_eval_step.
 
@@ -23,7 +23,7 @@ Print simple_assign.
 
   Example simple_assign_empty_trace :
     exists v,
-    eval_trace $0
+    eval_trace
       empty_context
       simple_assign
       (v, nil).
@@ -33,7 +33,7 @@ Print simple_assign.
 
   Example two_assigns_empty_trace :
     exists v,
-    eval_trace $0
+    eval_trace
       empty_context
       two_assigns
       (v, nil).
@@ -43,7 +43,7 @@ Print simple_assign.
 
   Example simple_if_true_branch :
     exists v,
-    eval_trace $0
+    eval_trace
       empty_context
       simple_if
       (v, Branch true :: nil).
@@ -53,7 +53,7 @@ Print simple_assign.
 
   Example simple_sequence_true_false_branch :
     exists v,
-    eval_trace $0
+    eval_trace
       empty_context
       simple_sequence
       (v, Branch true :: Branch false :: nil).
@@ -63,7 +63,7 @@ Print simple_assign.
 
   Example nested_if_true_false_branch :
     exists v,
-    eval_trace $0
+    eval_trace
       empty_context
       nested_if
       (v, Branch true :: Branch false :: nil).
@@ -73,7 +73,7 @@ Print simple_assign.
 
   Example simple_while_true_false_branch :
     exists v,
-    eval_trace $0
+    eval_trace
       ($0 $+ ("x", 1), nil)
       simple_while
       (v, Branch true :: Branch false :: nil).
@@ -84,7 +84,7 @@ Print simple_assign.
 
   Example trace_with_zero :
     exists v,
-    eval_trace $0
+    eval_trace
       ($0 $+ ("oops", 0), nil)
       the_answer_is_42
       (v, Branch false :: Branch true :: nil).
@@ -92,7 +92,7 @@ Print simple_assign.
 
   Example trace_with_nonzero :
     exists v,
-    eval_trace $0
+    eval_trace
       ($0 $+ ("oops", 1), nil)
       the_answer_is_42
       (v, Branch true :: Branch true :: nil).
