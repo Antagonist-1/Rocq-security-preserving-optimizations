@@ -2,12 +2,9 @@ Require Import Map.
 Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Safe.Unskip.
+Require Import Proofs.unskip.UnskipHints.
 From Stdlib Require Import List.
 Import ListNotations.
-
-
-Create HintDb unskip_db.
-Hint Constructors eval eval_trace eval_sec : unskip_db.
 
 Definition same_sec_state (sctx1 sctx2 : sec_context) : Prop :=
   sec_val_of sctx1 = sec_val_of sctx2 /\
