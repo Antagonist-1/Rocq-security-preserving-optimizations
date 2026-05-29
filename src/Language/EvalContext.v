@@ -118,3 +118,32 @@ Lemma match_ctx_refl : forall ctx,
 Proof.
   intros ctx. unfold match_ctx. split; [reflexivity | apply trace_subseq_refl].
 Qed.
+
+Lemma trace_subseq_trans : forall A (src mid dst : list A),
+  trace_subseq src mid ->
+  trace_subseq mid dst ->
+  trace_subseq src dst.
+Proof.
+  intros A src mid dst Hsrc_mid.
+  revert dst.
+  induction Hsrc_mid; intros dst Hmid_dst.
+  - inversion Hmid_dst; constructor.
+  - inversion Hmid_dst; subst.
+    + constructor. eauto.
+    + econstructor. eauto.
+  - econstructor. eauto.
+Qed.
+
+Lemma match_ctx_trans : forall ctx1 ctx2 ctx3,
+  match_ctx ctx1 ctx2 ->
+  match_ctx ctx2 ctx3 ->
+  match_ctx ctx1 ctx3.
+Proof.
+  intros ctx1 ctx2 ctx3 H12 H23.
+  unfold match_ctx in *.
+  destruct H12 as [Hval12 Htrace12].
+  destruct H23 as [Hval23 Htrace23].
+  split.
+  - rewrite Hval12. exact Hval23.
+  - eapply trace_subseq_trans; eauto.
+Qed.
