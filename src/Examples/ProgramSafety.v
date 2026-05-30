@@ -61,15 +61,15 @@ Proof.
     easy.
 Qed.
 
-Example safe1 := single_out_pgm public_guard_program "x".
+Example secure1 := single_out_pgm public_guard_program "x".
 
-Goal is_secure_pgm safe1 VarSet.empty.
+Goal is_secure_pgm secure1 VarSet.empty.
 Proof.  
     unfold is_secure_pgm.
     eexists.
     eassert (Hct : ct_cmd VarSet.empty public_guard_program VarSet.empty).
     {
-        unfold safe1, public_guard_program. simpl.
+        unfold secure1, public_guard_program. simpl.
         econstructor.
         2,3: econstructor.
         all: unfold senv, interp_sec, sec_lookup in *. 

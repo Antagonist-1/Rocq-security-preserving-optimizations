@@ -77,7 +77,7 @@ src/
   non-inference, security environment reasoning, liveness analysis, secure DSE,
   unsecure DSE, and `unskip`.
 - `src/Examples/` contains executable examples and checks for traces, program
-  safety, DSE behavior, and security units.
+  security, DSE behavior, and security units.
 
 ## Report
 

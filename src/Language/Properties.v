@@ -138,13 +138,13 @@ Theorem is_secure_opt_compose : forall opt1 opt2,
   opt_eval_sec_sound opt1 ->
   is_secure_opt (compose_opt opt2 opt1).
 Proof.
-  intros opt1 opt2 [Hsafe_pgm1 Hkeep1] [Hsafe_pgm2 Hkeep2] Hsound1.
+  intros opt1 opt2 [Hsecure_pgm1 Hkeep1] [Hsecure_pgm2 Hkeep2] Hsound1.
   unfold is_secure_opt.
   split.
-  - intros p secrets Hsafe.
-    apply Hsafe_pgm2.
-    apply Hsafe_pgm1.
-    exact Hsafe.
+  - intros p secrets Hsecure.
+    apply Hsecure_pgm2.
+    apply Hsecure_pgm1.
+    exact Hsecure.
   - unfold opt_keeps_secrets_secret, compose_opt in *.
     intros sctx sctx' sctx'' pgm pgm'' Hopt Hsrc Hopt_eval x.
     destruct (Hsound1 sctx sctx' pgm Hsrc) as [sctx_mid Hmid_eval].
