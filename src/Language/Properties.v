@@ -84,13 +84,13 @@ Definition non_inference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
 
 
 
-(* A safe program is defined as a non-inferent program *)
-Definition is_safe_pgm (pgm: program) (secrets: sec_env): Prop :=
+(* A secure program is defined as a non-inferent program *)
+Definition is_secure_pgm (pgm: program) (secrets: sec_env): Prop :=
   exists secrets',
     non_inference secrets (cmd_of pgm) secrets'.
 
 
-(* A safe optimization does not change the values and sec_level of secrets*)
+(* A secure optimization does not change the values and sec_level of secrets*)
 
   (* if both programs start with the same context (valuation+secrets),
       1. the resulting set of secrets are the same (secrets propagated correctly)
@@ -122,24 +122,24 @@ Definition compose_opt
   opt2 (opt1 pgm secrets) secrets.
 
 
-(*We define a safe optimization as an opt. that:
-  1. transforms a safe program into another safe program
+(*We define a secure optimization as an opt. that:
+  1. transforms a secure program into another secure program
   2. doesn't change the value or sec_level of secrets, compared to the source program.
 *)
-Definition is_safe_opt (opt: program -> sec_env -> program): Prop :=
+Definition is_secure_opt (opt: program -> sec_env -> program): Prop :=
   (forall (p: program) (secrets: sec_env) ,
-    is_safe_pgm p secrets -> is_safe_pgm (opt p secrets) secrets) /\
+    is_secure_pgm p secrets -> is_secure_pgm (opt p secrets) secrets) /\
     opt_keeps_secrets_secret opt.
 
-(* A composition of safe optimization is a safe optimization.*)
-Theorem is_safe_opt_compose : forall opt1 opt2,
-  is_safe_opt opt1 ->
-  is_safe_opt opt2 ->
+(* A composition of secure optimization is a secure optimization.*)
+Theorem is_secure_opt_compose : forall opt1 opt2,
+  is_secure_opt opt1 ->
+  is_secure_opt opt2 ->
   opt_eval_sec_sound opt1 ->
-  is_safe_opt (compose_opt opt2 opt1).
+  is_secure_opt (compose_opt opt2 opt1).
 Proof.
   intros opt1 opt2 [Hsafe_pgm1 Hkeep1] [Hsafe_pgm2 Hkeep2] Hsound1.
-  unfold is_safe_opt.
+  unfold is_secure_opt.
   split.
   - intros p secrets Hsafe.
     apply Hsafe_pgm2.

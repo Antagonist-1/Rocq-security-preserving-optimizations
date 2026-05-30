@@ -2,7 +2,7 @@ Require Import Map.
 Require Import Language.Syntax.
 Require Import Language.Security.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.Unskip.
+Require Import Language.Optimizations.Secure.Unskip.
 Require Import VarSets.
 
 (* computes security environment of variables after evaluating c*)
@@ -33,7 +33,7 @@ Definition protected_out (pgm: program) (secrets: sec_env) : var_set :=
   VarSet.union (output_of pgm) (sec_post (cmd_of pgm) secrets).
 
 
-Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
+Fixpoint secure_DSE_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
   match c with
   | Skip => Skip
   | Assign x e =>
@@ -51,10 +51,10 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
       end
   | Sequence c1 c2 =>
       let secrets_mid := sec_post c1 secrets in
-      Sequence (safe_dse_helper c1 (liveness c2 out) secrets)
-        (safe_dse_helper c2 out secrets_mid)
+      Sequence (secure_DSE_helper c1 (liveness c2 out) secrets)
+        (secure_DSE_helper c2 out secrets_mid)
   | If e thenC elseC =>
-      If e (safe_dse_helper thenC out secrets) (safe_dse_helper elseC out secrets)
+      If e (secure_DSE_helper thenC out secrets) (secure_DSE_helper elseC out secrets)
   | While e body =>
       (* Conservative temporary checkpoint: keep loop bodies unchanged until the
          loop secret invariant is implemented and proved. *)
@@ -62,5 +62,5 @@ Fixpoint safe_dse_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
   end.
 
   (* wrapper for Secure Dead Store Elimination*)
-Definition opt_safe_dse (pgm: program) (secrets: sec_env): program :=
-  (opt_unskip_cmd (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets), output_of pgm).
+Definition opt_secure_DSE (pgm: program) (secrets: sec_env): program :=
+  (opt_unskip_cmd (secure_DSE_helper (cmd_of pgm) (protected_out pgm secrets) secrets), output_of pgm).

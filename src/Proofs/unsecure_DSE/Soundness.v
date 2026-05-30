@@ -2,8 +2,8 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Unsafe.DSE.
-Require Import Language.Optimizations.Safe.Unskip.
+Require Import Language.Optimizations.Unsecure.DSE.
+Require Import Language.Optimizations.Secure.Unskip.
 Require Import Proofs.Analysis.LivenessProofs.
 Require Import Proofs.unskip.Soundness.
 Require Import Proofs.VarSetAgreement.

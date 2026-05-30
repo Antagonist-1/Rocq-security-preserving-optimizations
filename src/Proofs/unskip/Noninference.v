@@ -1,7 +1,7 @@
 Require Import Map.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.Unskip.
+Require Import Language.Optimizations.Secure.Unskip.
 Require Import Proofs.unskip.UnskipHints.
 From Stdlib Require Import List.
 From Stdlib Require Import Lia.
@@ -245,7 +245,7 @@ Proof.
       2. The conditional is dropped completely (1 case: Skip, Skip): the
          optimizer replaced the If cmd with a single Skip. Even though opt is
          just Skip, src still has an `If` statement, which means appends to the
-         trace. To prove this is safe, we do two things:
+         trace. To prove this is secure, we do two things:
         1. We use opt_unskip_skip_trace_complete to prove that running src's
            "useless" branch doesn't change the valuation.
         2. We use trace_subseq_append_drop as the traces don't match perfectly.
@@ -585,15 +585,15 @@ Qed.
 
 (* Main theorem of non-inference preservation *)
 
-(* [opt_unskip_preserves_safe_pgm] proves the non-inference half of
-   [is_safe_opt]. [opt_unskip_backward] expands optimized executions into
+(* [opt_unskip_preserves_secure_pgm] proves the non-inference half of
+   [is_secure_opt]. [opt_unskip_backward] expands optimized executions into
    matching source executions; [opt_traces_equal] then transfers source trace
    equality to the optimized runs. *)
-Lemma opt_unskip_preserves_safe_pgm : forall p secrets,
-  is_safe_pgm p secrets ->
-  is_safe_pgm (opt_unskip p secrets) secrets.
+Lemma opt_unskip_preserves_secure_pgm : forall p secrets,
+  is_secure_pgm p secrets ->
+  is_secure_pgm (opt_unskip p secrets) secrets.
 Proof.
-  unfold is_safe_pgm, opt_unskip, opt_unskip_cmd.
+  unfold is_secure_pgm, opt_unskip, opt_unskip_cmd.
   intros [c out] secrets [secrets' Hni].
   simpl in *.
   exists secrets'.

@@ -46,7 +46,7 @@ We focus on preserving two distinct security properties. To prove them we will e
 
 *Security properties*, inspired by the cryptography-centered language *Jasmin*~@almeida2017 @olmos2025:
 
-- *Safe Memory Clearing:* Address the _Dead Store Elimination (DSE)_ issue illustrated above by ensuring the optimizer cannot erase deliberate clears.
+- *Secure Memory Clearing:* Address the _Dead Store Elimination (DSE)_ issue illustrated above by ensuring the optimizer cannot erase deliberate clears.
 
   _All sensitive assignments from the original program remain in the optimized program_ 
 

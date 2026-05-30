@@ -2,10 +2,10 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.DSE.
+Require Import Language.Optimizations.Secure.DSE.
 Require Import Proofs.Analysis.LivenessProofs.
-Require Import Proofs.safe_DSE.Defs.
-Require Import Proofs.safe_DSE.SecretPreservation.
+Require Import Proofs.secure_DSE.Defs.
+Require Import Proofs.secure_DSE.SecretPreservation.
 Require Import Proofs.VarSetAgreement.
 Require Import Proofs.unskip.Soundness.
 Require Import Proofs.EvalEquivalence.
@@ -37,11 +37,11 @@ Proof.
   - exact (sec_coincide_vals _ _ _ Hcoincide_out).
 Qed.
 
-Lemma safe_dse_helper_sound: forall c out v1 v2 v1' secrets,
+Lemma secure_DSE_helper_sound: forall c out v1 v2 v1' secrets,
   agree_on (liveness c out) v1 v2 ->
   eval v1 c v1' ->
   exists v2',
-    eval v2 (safe_dse_helper c out secrets) v2' /\
+    eval v2 (secure_DSE_helper c out secrets) v2' /\
     agree_on out v1' v2'.
 Proof.
   intros c out v1 v2 v1' secrets H_agree H.
@@ -153,22 +153,22 @@ Proof.
      exists v_while2. split; assumption.
 Qed.
 
-Lemma opt_safe_dse_sound : forall pgm secrets v v',
+Lemma opt_secure_DSE_sound : forall pgm secrets v v',
   eval v (cmd_of pgm) v' ->
   exists v_opt,
-    eval v (cmd_of (opt_safe_dse pgm secrets)) v_opt /\
+    eval v (cmd_of (opt_secure_DSE pgm secrets)) v_opt /\
     agree_on (output_of pgm) v' v_opt.
 Proof.
   intros pgm secrets v v' Heval.
-  unfold opt_safe_dse.
+  unfold opt_secure_DSE.
 
   assert (H_dse: exists v_dse,
-    eval v (safe_dse_helper (cmd_of pgm) (protected_out pgm secrets) secrets) v_dse /\
+    eval v (secure_DSE_helper (cmd_of pgm) (protected_out pgm secrets) secrets) v_dse /\
     agree_on (protected_out pgm secrets) v' v_dse).
   {
     destruct pgm as [c out].
     simpl.
-    specialize (safe_dse_helper_sound c (VarSet.union out (sec_post c secrets)) v v v' secrets).
+    specialize (secure_DSE_helper_sound c (VarSet.union out (sec_post c secrets)) v v v' secrets).
     intro Hsound.
     eapply Hsound.
     - apply agree_on_refl.
@@ -184,21 +184,21 @@ Proof.
   apply VarSet.union_spec. left. exact Hx.
 Qed.
 
-Lemma opt_safe_dse_core_eval_sec_sound :
-  opt_eval_sec_sound opt_safe_dse_core.
+Lemma opt_secure_DSE_core_eval_sec_sound :
+  opt_eval_sec_sound opt_secure_DSE_core.
 Proof.
-  unfold opt_eval_sec_sound, opt_safe_dse_core.
+  unfold opt_eval_sec_sound, opt_secure_DSE_core.
   intros sctx sctx' [c out] Hsrc.
   destruct sctx as [[v se] t].
   destruct sctx' as [[v' se'] t'].
   simpl in *.
   pose proof (Eval_proj_sec_trace (v, se, t) c (v', se', t') Hsrc) as Heval.
-  pose proof (safe_dse_helper_sound c
+  pose proof (secure_DSE_helper_sound c
     (VarSet.union out (sec_post c se))
     v v v' se (agree_on_refl _ _) Heval) as Hsound.
   destruct Hsound as [v_opt [Hopt _]].
   destruct (Eval_lift_trace_sec v
-    (safe_dse_helper c (VarSet.union out (sec_post c se)) se)
+    (secure_DSE_helper c (VarSet.union out (sec_post c se)) se)
     v_opt Hopt se t) as [sec_opt [trace_opt Hsec_opt]].
   exists (v_opt, sec_opt, trace_opt).
   exact Hsec_opt.

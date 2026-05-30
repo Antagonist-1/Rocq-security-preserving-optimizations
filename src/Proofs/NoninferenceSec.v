@@ -331,7 +331,7 @@ In the stricter non_inference_sec case, we could imagine two scenarios: "y" is s
 In the first case, the secrecy of "y" propagates to "x". in the second case, "x" remains public. So we don't have the same set of secrets in the end.
 The program doesn't satisfy non_inference_sec.
 
-We can see that this program is not very interesting (x being always 0 should not matter), and it hints that non_inference_sec does not bring any valuable information about the safety of the program
+We can see that this program is not very interesting (x being always 0 should not matter), and it hints that non_inference_sec does not bring any valuable information about the security of the program
 This program is even a bit tricking the system. By not defining "y" in the second sctx, we are tricking our system with a var that is neither public nor secret.
 
 We didn't formalize further this notion of difference between non_inference and non_inference_sec, but we found interesting to display where it didn't match. This point could point to a flaw in our system, inducing that we might need to declare all variables that we used (= undeclared vars are illegal)

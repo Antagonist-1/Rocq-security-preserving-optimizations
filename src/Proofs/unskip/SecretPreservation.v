@@ -1,7 +1,7 @@
 Require Import Map.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.Unskip.
+Require Import Language.Optimizations.Secure.Unskip.
 Require Import Proofs.unskip.UnskipHints.
 
 From Stdlib Require Import List.
@@ -116,7 +116,7 @@ Qed.
 
 (* Main theorem of secret preservation *)
 (* [opt_keeps_secrets_secret] proves the secret preservation half of
-   [is_safe_opt]. [opt_unskip_sec_forward] simulates optimized executions from
+   [is_secure_opt]. [opt_unskip_sec_forward] simulates optimized executions from
    source executions, and the determinism of eval_sec ensures that the optimized
    execution must have the same final state as the source execution *)
 

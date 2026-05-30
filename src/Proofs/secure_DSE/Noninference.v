@@ -2,9 +2,9 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.DSE.
-Require Import Proofs.safe_DSE.Defs.
-Require Import Proofs.safe_DSE.SecretPreservation.
+Require Import Language.Optimizations.Secure.DSE.
+Require Import Proofs.secure_DSE.Defs.
+Require Import Proofs.secure_DSE.SecretPreservation.
 Require Import Proofs.VarSetAgreement.
 Require Import Proofs.EvalEquivalence.
 Require Import Proofs.SecEnvSubtyping.
@@ -31,18 +31,18 @@ Proof.
     all: reflexivity.
 Qed.
 
-(* Every traced execution of safe_dse_helper can be matched to an evaluation of the source program with
+(* Every traced execution of secure_DSE_helper can be matched to an evaluation of the source program with
    the same trace and the same out *)
-Lemma opt_safe_dse_helper_trace_complete : forall c out ctx ctx_opt secrets,
-  eval_trace ctx (safe_dse_helper c out secrets) ctx_opt ->
+Lemma opt_secure_DSE_helper_trace_complete : forall c out ctx ctx_opt secrets,
+  eval_trace ctx (secure_DSE_helper c out secrets) ctx_opt ->
   exists ctx_src,
     eval_trace ctx c ctx_src /\
     trace_coincide out ctx_src ctx_opt.
 Proof.
   intros c out [v t] [v_opt t_opt] secrets Hopt.
-  destruct (Eval_lift_sec v t (safe_dse_helper c out secrets) v_opt t_opt Hopt secrets)
+  destruct (Eval_lift_sec v t (secure_DSE_helper c out secrets) v_opt t_opt Hopt secrets)
     as [se_opt Hopt_sec].
-  pose proof (safe_dse_helper_sec_complete c out secrets
+  pose proof (secure_DSE_helper_sec_complete c out secrets
     (v, secrets, t) (v_opt, se_opt, t_opt)
     (sec_env_sub_refl secrets) Hopt_sec) as Hcomplete.
   destruct Hcomplete as [ctx_src_sec [Hsrc_sec Hcoin_sec]].
@@ -53,21 +53,21 @@ Proof.
     constructor; simpl; exact Htrace || exact Hagree.
 Qed.
 
-Lemma opt_safe_dse_core_preserves_safe_pgm : forall p secrets,
-    is_safe_pgm p secrets ->
-    is_safe_pgm (opt_safe_dse_core p secrets) secrets.
+Lemma opt_secure_DSE_core_preserves_secure_pgm : forall p secrets,
+    is_secure_pgm p secrets ->
+    is_secure_pgm (opt_secure_DSE_core p secrets) secrets.
 Proof.
-  unfold is_safe_pgm, opt_safe_dse_core in *.
+  unfold is_secure_pgm, opt_secure_DSE_core in *.
   intros [c out] secrets [secrets' Hni].
   simpl in *.
   exists (VarSet.union secrets
-    (vars_in_cmd (safe_dse_helper c (VarSet.union out (sec_post c secrets)) secrets))).
+    (vars_in_cmd (secure_DSE_helper c (VarSet.union out (sec_post c secrets)) secrets))).
   unfold non_inference in *.
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
 
-  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ Hopt_eval1)
+  pose proof (opt_secure_DSE_helper_trace_complete _ _ _ _ _ Hopt_eval1)
     as Htrace_complete1.
-  pose proof (opt_safe_dse_helper_trace_complete _ _ _ _ _ Hopt_eval2)
+  pose proof (opt_secure_DSE_helper_trace_complete _ _ _ _ _ Hopt_eval2)
     as Htrace_complete2.
   destruct Htrace_complete1 as [[v1_out trace1_out] [Heval1 Hcoin1]].
   destruct Hcoin1 as [Htrace1 Hagree1].

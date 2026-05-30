@@ -1,7 +1,7 @@
 Require Import Map.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.Unskip.
+Require Import Language.Optimizations.Secure.Unskip.
 Require Import Proofs.unskip.UnskipHints.
 
 Lemma opt_unskip_sound: forall c v v',

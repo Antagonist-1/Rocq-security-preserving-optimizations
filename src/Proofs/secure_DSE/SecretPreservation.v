@@ -2,9 +2,9 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.DSE.
+Require Import Language.Optimizations.Secure.DSE.
 Require Import Proofs.Analysis.LivenessProofs.
-Require Import Proofs.safe_DSE.Defs.
+Require Import Proofs.secure_DSE.Defs.
 Require Import Proofs.VarSetAgreement.
 Require Import Proofs.SecLookup.
 Require Import Proofs.SecEnvSubtyping.
@@ -497,9 +497,9 @@ Qed.
 
 (* Any evaluation of the optimized program can be matched to an evaluation of the original program
    that have : 1. same sec. labels, 2. same trace, 3. agree on the out variables. *)
-Lemma safe_dse_helper_sec_complete : forall c out secrets ctx ctx_opt,
+Lemma secure_DSE_helper_sec_complete : forall c out secrets ctx ctx_opt,
   sec_env_sub (sec_of ctx) secrets ->
-  eval_sec ctx (safe_dse_helper c out secrets) ctx_opt ->
+  eval_sec ctx (secure_DSE_helper c out secrets) ctx_opt ->
   exists ctx_src,
     eval_sec ctx c ctx_src /\
     sec_coincide out ctx_src ctx_opt.
@@ -605,17 +605,17 @@ Proof.
   - finish_sec_same Hopt.
 Qed.
 
-Lemma opt_safe_dse_core_keeps_secrets_secret :
-  opt_keeps_secrets_secret opt_safe_dse_core.
+Lemma opt_secure_DSE_core_keeps_secrets_secret :
+  opt_keeps_secrets_secret opt_secure_DSE_core.
 Proof.
-  unfold opt_keeps_secrets_secret, opt_safe_dse_core.
+  unfold opt_keeps_secrets_secret, opt_secure_DSE_core.
   intros sctx sctx' sctx'' pgm pgm' Hopt Hsrc Hopt_eval x.
   destruct pgm as [c out].
   destruct pgm' as [c' out'].
   simpl in Hopt.
   inversion Hopt; subst; clear Hopt.
   simpl in Hopt_eval.
-  pose proof (safe_dse_helper_sec_complete c
+  pose proof (secure_DSE_helper_sec_complete c
     (VarSet.union out' (sec_post c (sec_of sctx)))
     (sec_of sctx) sctx sctx''
     (sec_env_sub_refl (sec_of sctx))

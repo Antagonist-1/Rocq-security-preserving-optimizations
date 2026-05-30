@@ -3,14 +3,14 @@ Require Import Language.Semantics.
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
-Require Import Language.Optimizations.Unsafe.DSE.
+Require Import Language.Optimizations.Unsecure.DSE.
 Require Import Proofs.Noninference.
 
 From Stdlib Require Import Lia.
 
 Print secret_guard_program.
 
-Example unsafe1 := single_out_pgm secret_guard_program "x".
+Example unsecure1 := single_out_pgm secret_guard_program "x".
 
 Example senv := senv_mk1 "secret" Secret.
 
@@ -18,11 +18,11 @@ Example v1 := $0 $+ ("secret", 1).
 Example v2 := $0 $+ ("secret", 0).
 
 
-Goal ~ (is_safe_pgm unsafe1 senv).
+Goal ~ (is_secure_pgm unsecure1 senv).
 Proof.  
     intros H.
     destruct H as [? Hct].
-    unfold non_inference, unsafe1 in Hct; simpl in Hct.
+    unfold non_inference, unsecure1 in Hct; simpl in Hct.
     specialize (Hct v1 v2 nil (v1 $+ ("x",1)) (v2 $+ ("x", 0)) (cons (Branch true)  nil) (cons (Branch false) nil)).
     assert (Hpre1 :  agree_on_public senv v1 v2).
     {
@@ -63,9 +63,9 @@ Qed.
 
 Example safe1 := single_out_pgm public_guard_program "x".
 
-Goal is_safe_pgm safe1 VarSet.empty.
+Goal is_secure_pgm safe1 VarSet.empty.
 Proof.  
-    unfold is_safe_pgm.
+    unfold is_secure_pgm.
     eexists.
     eassert (Hct : ct_cmd VarSet.empty public_guard_program VarSet.empty).
     {
