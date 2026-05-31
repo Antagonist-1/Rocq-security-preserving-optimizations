@@ -1,0 +1,66 @@
+%YAML 1.2
+---
+name: Rocq
+file_extensions:
+  - v
+  - coq
+  - rocq
+scope: source.coq
+
+contexts:
+  main:
+    # Strings
+    - match: '"'
+      push: string
+
+    # Nested Comments
+    - match: '\(\*'
+      push: comment
+
+    # Module / Import commands
+    - match: '\b(Require|Import|Export|From|Module|End)\b'
+      scope: keyword.control.import.coq
+
+    # Declarations and Definitions
+    - match: '\b(Theorem|Lemma|Corollary| Example|Proposition|Fact|Remark|Definition|Inductive|CoInductive|Fixpoint|CoFixpoint|Record|Structure|Class|Instance|Let|Variable|Variables|Context|Hypothesis|Hypotheses|Axiom|Conjecture|Parameter|Parameters|)\b'
+      scope: keyword.declaration.coq
+
+    # Proof boundaries
+    - match: '\b(Proof|Qed|Defined|Admitted|Abort)\b'
+      scope: keyword.control.proof.coq
+
+    # Gallina keywords
+    - match: '\b(forall|∀|fun|match|with|end|if|then|else|let|in|return|as)\b'
+      scope: keyword.control.coq
+    - match: '∀|∃'
+      scope: keyword.control.coq
+
+    # Types and Sorts
+    - match: '\b(Prop|Set|Type)\b'
+      scope: storage.type.coq
+
+    # Common Tactics (Ltac)
+    - match: '\b(intros?|apply|eapply|do|eexists|eauto|specialize|exact|reflexivity|symmetry|transitivity|rewrite|simpl|unfold|induction|destruct|split|left|right|exists|clear|subst|assumption|auto|trivial|omega|lia|ring|field)\b'
+      scope: support.function.tactic.coq
+
+    # Operators and Punctuation
+    - match: '->|=>|:=|:>|:|\.'
+      scope: keyword.operator.coq
+
+    # Numbers
+    - match: '\b[0-9]+\b'
+      scope: constant.numeric.coq
+
+  comment:
+    - meta_scope: comment.block.coq
+    - match: '\*\)'
+      pop: true
+    - match: '\(\*'
+      push: comment # Coq comments can be safely nested!
+
+  string:
+    - meta_scope: string.quoted.double.coq
+    - match: '"'
+      pop: true
+    - match: '\\.'
+      scope: constant.character.escape.coq
