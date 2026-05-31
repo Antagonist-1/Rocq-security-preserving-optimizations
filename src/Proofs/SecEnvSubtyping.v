@@ -4,7 +4,7 @@ Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Secure.DSE.
 Require Import Proofs.SecLookup.
-Require Import Proofs.Noninference.
+Require Import Proofs.Noninterference.
 
 (* secrets of se1 is a subset of those in se2*)
 Definition sec_env_sub (se1 se2 : sec_env) : Prop :=

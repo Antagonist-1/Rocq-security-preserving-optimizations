@@ -583,9 +583,9 @@ Proof.
   - reflexivity.
 Qed.
 
-(* Main theorem of non-inference preservation *)
+(* Main theorem of non-interference preservation *)
 
-(* [opt_unskip_preserves_secure_pgm] proves the non-inference half of
+(* [opt_unskip_preserves_secure_pgm] proves the non-interference half of
    [is_secure_opt]. [opt_unskip_backward] expands optimized executions into
    matching source executions; [opt_traces_equal] then transfers source trace
    equality to the optimized runs. *)
@@ -597,7 +597,7 @@ Proof.
   intros [c out] secrets [secrets' Hni].
   simpl in *.
   exists secrets'.
-  unfold non_inference in *.
+  unfold non_interference in *.
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
 
   pose proof Hopt_eval1 as Hopt_eval1_copy.
@@ -611,7 +611,7 @@ Proof.
   apply opt_unskip_backward with (ctx_src := (v2, t_in)) in Hopt_eval2_copy; auto with unskip_db.
   destruct Hopt_eval2_copy as [[src_final_v2 src_trace2] [Hsrc_eval2 Hmatch_final2]].
 
-  (* v1 and v2 agree on public (Hagree). By the non-inference of the source
+  (* v1 and v2 agree on public (Hagree). By the non-interference of the source
      program (Hni), we get that the traces are equal and that the public values
      are also equal *)
   pose proof (Hni v1 v2 t_in src_final_v1 src_final_v2 src_trace1 src_trace2 Hagree Hsrc_eval1

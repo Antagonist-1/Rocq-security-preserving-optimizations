@@ -2,16 +2,16 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
 Require Import Proofs.SecLookup.
-Require Import Proofs.Noninference.
+Require Import Proofs.Noninterference.
 From Stdlib Require Import Program.Equality.
 
 
 (* 
-Here we define a stronger definition of non_inference, which also accounts for security levels.
-An example at the end of the file shows where a file could satisfy non_inference, but fails to satisfy
+Here we define a stronger definition of non_interference, which also accounts for security levels.
+An example at the end of the file shows where a file could satisfy non_interference, but fails to satisfy
 this new property.
 
-Only after defining this stronger version of non_inference, we realized that it didn't bring a lot more value.
+Only after defining this stronger version of non_interference, we realized that it didn't bring a lot more value.
 We decided to keep it for potential future work, if it turns out it has more value than we thought.
 *)
 
@@ -25,7 +25,7 @@ Definition agree_on_public_sec_ctx (se_static : sec_env) (ctx1 ctx2 : sec_contex
   (forall x, sec_lookup se_static x = Public ->
              sec_lookup (sec_of ctx1) x = sec_lookup (sec_of ctx2) x).
 
-Definition non_inference_sec (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
+Definition non_interference_sec (se_static: sec_env) (c: cmd) (se_static_out: sec_env) : Prop :=
   forall ctx1_in ctx2_in ctx1_out ctx2_out,
     (* If the initial contexts agree on public data and labels... *)
     agree_on_public_sec_ctx se_static ctx1_in ctx2_in ->
@@ -103,12 +103,12 @@ Qed.
 Lemma while_soundness_sec : forall se_inv e body se_body,
   interp_sec e se_inv = Public ->
   ct_cmd se_inv body se_body ->
-  non_inference_sec se_inv body se_body ->
+  non_interference_sec se_inv body se_body ->
   VarSet.Equal (join_sec_env se_inv se_body) se_inv ->
-  non_inference_sec se_inv (While e body) se_inv.
+  non_interference_sec se_inv (While e body) se_inv.
 Proof.
   intros se_inv e body se_body Hguard Hct_body Hni_body Hjoin.
-  unfold non_inference_sec.
+  unfold non_interference_sec.
   intros ctx1_in ctx2_in ctx1_out ctx2_out Hagree_inv Htrace_in Heval1.
 
   revert ctx2_in ctx2_out Htrace_in Hagree_inv.
@@ -152,14 +152,14 @@ Proof.
 Qed.
 
 (* proves the ct_cmd soundness, specifically for the cmov case. *)
-Lemma cmov_non_inference_sec : forall se x cond e1 e2 level,
+Lemma cmov_non_interference_sec : forall se x cond e1 e2 level,
   join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
-  non_inference_sec se (Cmov x cond e1 e2) (update_sec se x level).
+  non_interference_sec se (Cmov x cond e1 e2) (update_sec se x level).
 Proof.
   Ltac resolve_sec_update_main :=
     intros param Hparam; cbn in *.
 
-  unfold non_inference_sec.
+  unfold non_interference_sec.
   intros se x cond e1 e2 level Hjoin ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
   inversion Heval1; inversion Heval2; subst;
     (split; [assumption |]);
@@ -200,10 +200,10 @@ Proof.
 Qed.
 
 (* A program that is constant time according to our definition should satisfy
-non-inference_sec. TODO clean this proof *) 
+non-interference_sec. TODO clean this proof *) 
 Theorem ct_cmd_soundness_sec : forall se c se_out,
   ct_cmd se c se_out ->
-  non_inference_sec se c se_out.
+  non_interference_sec se c se_out.
 Proof.
   Ltac invert_evals_sec :=
     inversion Heval1; inversion Heval2; subst.
@@ -235,7 +235,7 @@ Proof.
   autorewrite with core in *; try reflexivity.
 
   intros se c se_out Hct.
-  unfold non_inference_sec.
+  unfold non_interference_sec.
 
   induction Hct;
     intros ctx1_in ctx2_in ctx1_out ctx2_out Hagree Htrace Heval1 Heval2.
@@ -262,8 +262,8 @@ Proof.
       * apply Hdyn_agree. exact Hparam.
 
   - (* CtCmov *)
-    pose proof (cmov_non_inference_sec se x cond e1 e2 level H) as Hcmov.
-    unfold non_inference_sec in Hcmov.
+    pose proof (cmov_non_interference_sec se x cond e1 e2 level H) as Hcmov.
+    unfold non_interference_sec in Hcmov.
     eapply Hcmov; eauto.
 
   - (* CtSequence *)
@@ -323,18 +323,18 @@ Proof.
 Qed.
 
 
-(* The example below is a program that satisfies non_inference, but does not satisfy non_inference_sec.
+(* The example below is a program that satisfies non_interference, but does not satisfy non_interference_sec.
 
 However, it is a bit of an outlier. By assigning "x" <- ("y" - "y"). the value stored in x is always 0. Therefore, the value of "y" has no impact on the final valuation and trace, so the program is non_inferent.
 
-In the stricter non_inference_sec case, we could imagine two scenarios: "y" is secret or "y" is not defined. 
+In the stricter non_interference_sec case, we could imagine two scenarios: "y" is secret or "y" is not defined. 
 In the first case, the secrecy of "y" propagates to "x". in the second case, "x" remains public. So we don't have the same set of secrets in the end.
-The program doesn't satisfy non_inference_sec.
+The program doesn't satisfy non_interference_sec.
 
-We can see that this program is not very interesting (x being always 0 should not matter), and it hints that non_inference_sec does not bring any valuable information about the security of the program
+We can see that this program is not very interesting (x being always 0 should not matter), and it hints that non_interference_sec does not bring any valuable information about the security of the program
 This program is even a bit tricking the system. By not defining "y" in the second sctx, we are tricking our system with a var that is neither public nor secret.
 
-We didn't formalize further this notion of difference between non_inference and non_inference_sec, but we found interesting to display where it didn't match. This point could point to a flaw in our system, inducing that we might need to declare all variables that we used (= undeclared vars are illegal)
+We didn't formalize further this notion of difference between non_interference and non_interference_sec, but we found interesting to display where it didn't match. This point could point to a flaw in our system, inducing that we might need to declare all variables that we used (= undeclared vars are illegal)
 *)
 
 (*TODO please check this*)
@@ -343,13 +343,13 @@ Definition inferent_example : cmd := Assign "x" (Var "y" - Var "y")%expr.
 Definition se_sample     : sec_env := senv_mk1 "y" Secret.
 Definition se_out_sample : sec_env := senv_mk1 "y" Secret.
 
-(* [inferent_example] satisfies [non_inference] under ([se_sample], [se_out_sample]):
+(* [inferent_example] satisfies [non_interference] under ([se_sample], [se_out_sample]):
    the value of [x] is always 0 in both runs, and [Assign] adds nothing to the
    trace, so output traces and public values trivially agree. *)
-Lemma inferent_example_non_inference :
-  non_inference se_sample inferent_example se_out_sample.
+Lemma inferent_example_non_interference :
+  non_interference se_sample inferent_example se_out_sample.
 Proof.
-  unfold non_inference, inferent_example, se_sample, se_out_sample.
+  unfold non_interference, inferent_example, se_sample, se_out_sample.
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
   inversion Heval1; subst; clear Heval1.
   inversion Heval2; subst; clear Heval2.
@@ -364,11 +364,11 @@ Proof.
     apply Hagree. exact Hparam.
 Qed.
 
-(* non_inference_sec fails*)
-Lemma inferent_example_not_non_inference_sec :
-  ~ non_inference_sec se_sample inferent_example se_out_sample.
+(* non_interference_sec fails*)
+Lemma inferent_example_not_non_interference_sec :
+  ~ non_interference_sec se_sample inferent_example se_out_sample.
 Proof.
-  unfold non_inference_sec, inferent_example, se_sample, se_out_sample.
+  unfold non_interference_sec, inferent_example, se_sample, se_out_sample.
   intros H.
 
   (* 2 start context that agree on public vars, but it's a bit of a trick,

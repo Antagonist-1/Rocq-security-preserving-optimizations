@@ -1,6 +1,6 @@
 Require Import Language.Main.
 Require Import Language.Optimizations.Secure.Unskip.
-Require Import Proofs.unskip.Noninference.
+Require Import Proofs.unskip.Noninterference.
 Require Import Proofs.unskip.SecretPreservation.
 
 
