@@ -82,4 +82,4 @@ src/
 ## Report
 
 The project report is available at
-[`report/6 - Security-Preserving Optimizations.pdf`](Report/6%20-%20Security-Preserving%20Optimizations.pdf).
+[`report/6 - Security-Preserving Optimizations.pdf`](report/6%20-%20Security-Preserving%20Optimizations.pdf).
