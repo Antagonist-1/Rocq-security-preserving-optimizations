@@ -9,6 +9,15 @@ Require Import Proofs.EvalEquivalence.
 Require Import Proofs.SecEnvSubtyping.
 
 
+(* This file proves the noninterference side of secure DSE.
+   The main bridge is to take an optimized trace execution, lift it to the
+   richer security semantics, use secret-preservation completeness to recover a
+   matching source execution, and then reuse the source program's existing
+   noninterference theorem.
+
+   After that, only a small framing argument is needed: variables not written by
+   the optimized command keep their initial public values. *)
+
 (* Two context coincide if they have the same trace and they agree on the output variables. *)
 Record trace_coincide (out : var_set) (ctx_src ctx_opt : context) : Prop := {
   trace_coincide_trace : trace_of ctx_src = trace_of ctx_opt;
@@ -30,8 +39,10 @@ Proof.
     all: reflexivity.
 Qed.
 
-(* Every traced execution of secure_DSE_helper can be matched to an evaluation of the source program with
-   the same trace and the same out *)
+(* Lift an optimized trace run into the security semantics, apply
+   `secure_DSE_helper_sec_complete`, then project back to plain traces. This is
+   the trace-level analogue of the completeness result used in the secret
+   preservation proofs. *)
 Lemma opt_secure_DSE_helper_trace_complete : forall c out ctx ctx_opt secrets,
   eval_trace ctx (secure_DSE_helper c out secrets) ctx_opt ->
   exists ctx_src,
