@@ -2,7 +2,7 @@ Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
-Require Import Language.Optimizations.Safe.DSE.
+Require Import Language.Optimizations.Secure.DSE.
 Require Import Proofs.SecLookup.
 Require Import Proofs.Noninference.
 

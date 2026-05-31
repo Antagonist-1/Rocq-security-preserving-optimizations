@@ -2,24 +2,24 @@ Require Import Examples.Programs.
 Require Import Map.
 Require Import VarSets.
 Require Import Language.Main.
-Require Import Language.Optimizations.Unsafe.DSE.
+Require Import Language.Optimizations.Unsecure.DSE.
 
 
-Example unsafe2 := single_out_pgm secret_overwritten_with_const "y".
+Example unsecure2 := single_out_pgm secret_overwritten_with_const "y".
 
 Example sctx: sec_context := ($0 $+ ("x", 123), senv_mk1 "x" Secret, nil).
 Example sctx': sec_context := ($0 $+ ("x", 123) $+ ("x", 0), senv_mk2 "x" "x" Secret Public, nil).
 Example sctx'' := sctx.
 
-Theorem unsafeDSE_unsafe : ~ is_safe_opt (fun p _ => opt_dse p).
+Theorem unsecureDSE_unsecure : ~ is_secure_opt (fun p _ => opt_dse p).
 Proof.
-  unfold is_safe_opt.
+  unfold is_secure_opt.
   intros H.
   destruct H.
   clear H.
   unfold opt_keeps_secrets_secret in H0.
-  specialize (H0 sctx sctx' sctx'' unsafe2 (single_out_pgm Skip "y")).
-  unfold unsafe2, secret_overwritten_with_const, opt_dse in H0.
+  specialize (H0 sctx sctx' sctx'' unsecure2 (single_out_pgm Skip "y")).
+  unfold unsecure2, secret_overwritten_with_const, opt_dse in H0.
   simpl in H0.
   assert (Hpre1 : eval_sec sctx ("x" <- 0) sctx') by (constructor; reflexivity).
   assert (Hpre2 : eval_sec sctx Skip sctx'') by constructor.

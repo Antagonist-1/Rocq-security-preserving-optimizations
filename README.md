@@ -36,15 +36,15 @@ src/
 │   ├── Properties.v
 │   ├── Main.v
 │   └── Optimizations/
-│       ├── Safe/
+│       ├── Secure/
 │       │   ├── DSE.v
 │       │   └── Unskip.v
-│       └── Unsafe/
+│       └── Unsecure/
 │           └── DSE.v
 ├── Proofs/
 │   ├── Analysis/
-│   ├── safe_DSE/
-│   ├── unsafe_DSE/
+│   ├── secure_DSE/
+│   ├── unsecure_DSE/
 │   └── unskip/
 └── Examples/
 ```
@@ -64,20 +64,20 @@ src/
 
 ### Optimizations
 
-- `src/Language/Optimizations/Unsafe/DSE.v` implements a baseline dead-store
+- `src/Language/Optimizations/Unsecure/DSE.v` implements a baseline dead-store
   elimination pass that is useful for showing what can go wrong.
-- `src/Language/Optimizations/Safe/DSE.v` implements the security-aware DSE
+- `src/Language/Optimizations/Secure/DSE.v` implements the security-aware DSE
   pass.
-- `src/Language/Optimizations/Safe/Unskip.v` removes redundant `Skip`
+- `src/Language/Optimizations/Secure/Unskip.v` removes redundant `Skip`
   commands while preserving the relevant properties.
 
 ### Proofs And Examples
 
 - `src/Proofs/` contains the proof development for semantic equivalence,
-  non-inference, security environment reasoning, liveness analysis, safe DSE,
-  unsafe DSE, and `unskip`.
+  non-inference, security environment reasoning, liveness analysis, secure DSE,
+  unsecure DSE, and `unskip`.
 - `src/Examples/` contains executable examples and checks for traces, program
-  safety, DSE behavior, and security units.
+  security, DSE behavior, and security units.
 
 ## Report
 

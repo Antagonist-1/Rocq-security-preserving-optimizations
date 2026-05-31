@@ -136,7 +136,7 @@ Proof.
   - (* Cmov*)
     eapply cmov_non_inference; eauto.
   - (* Sequence *)
-    (* Pipeline safety properties directly from c1 into c2. *)
+    (* Pipeline security properties directly from c1 into c2. *)
     invert_evals. destruct ctx1 as [v1' t1'], ctx3 as [v2' t2'].
     edestruct IHHct1 as [Htrace1 Hmem1]; eauto; subst.
     eapply IHHct2; eauto.

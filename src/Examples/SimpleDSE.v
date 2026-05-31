@@ -1,5 +1,5 @@
 Require Import Examples.Programs.
-Require Import Language.Optimizations.Unsafe.DSE.
+Require Import Language.Optimizations.Unsecure.DSE.
 Require Import Language.Main.
 
 
