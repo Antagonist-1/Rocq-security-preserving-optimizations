@@ -325,7 +325,7 @@ Qed.
 
 (* The example below is a program that satisfies non_interference, but does not satisfy non_interference_sec.
 
-However, it is a bit of an outlier. By assigning "x" <- ("y" - "y"). the value stored in x is always 0. Therefore, the value of "y" has no impact on the final valuation and trace, so the program is non_inferent.
+However, it is a bit of an outlier. By assigning "x" <- ("y" - "y"). the value stored in x is always 0. Therefore, the value of "y" has no impact on the final valuation and trace, so the program is non_interferent.
 
 In the stricter non_interference_sec case, we could imagine two scenarios: "y" is secret or "y" is not defined. 
 In the first case, the secrecy of "y" propagates to "x". in the second case, "x" remains public. So we don't have the same set of secrets in the end.
@@ -338,18 +338,18 @@ We didn't formalize further this notion of difference between non_interference a
 *)
 
 (*TODO please check this*)
-Definition inferent_example : cmd := Assign "x" (Var "y" - Var "y")%expr.
+Definition interferent_example : cmd := Assign "x" (Var "y" - Var "y")%expr.
 
 Definition se_sample     : sec_env := senv_mk1 "y" Secret.
 Definition se_out_sample : sec_env := senv_mk1 "y" Secret.
 
-(* [inferent_example] satisfies [non_interference] under ([se_sample], [se_out_sample]):
+(* [interferent_example] satisfies [non_interference] under ([se_sample], [se_out_sample]):
    the value of [x] is always 0 in both runs, and [Assign] adds nothing to the
    trace, so output traces and public values trivially agree. *)
-Lemma inferent_example_non_interference :
-  non_interference se_sample inferent_example se_out_sample.
+Lemma interferent_example_non_interference :
+  non_interference se_sample interferent_example se_out_sample.
 Proof.
-  unfold non_interference, inferent_example, se_sample, se_out_sample.
+  unfold non_interference, interferent_example, se_sample, se_out_sample.
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
   inversion Heval1; subst; clear Heval1.
   inversion Heval2; subst; clear Heval2.
@@ -365,10 +365,10 @@ Proof.
 Qed.
 
 (* non_interference_sec fails*)
-Lemma inferent_example_not_non_interference_sec :
-  ~ non_interference_sec se_sample inferent_example se_out_sample.
+Lemma interferent_example_not_non_interference_sec :
+  ~ non_interference_sec se_sample interferent_example se_out_sample.
 Proof.
-  unfold non_interference_sec, inferent_example, se_sample, se_out_sample.
+  unfold non_interference_sec, interferent_example, se_sample, se_out_sample.
   intros H.
 
   (* 2 start context that agree on public vars, but it's a bit of a trick,
@@ -377,7 +377,7 @@ Proof.
   pose (ctx1 := (($0 : valuation), senv_mk1 "y" Secret, @nil trace_event)).
   pose (ctx2 := (($0 : valuation), VarSet.empty,        @nil trace_event)).
 
-  assert (Heval1 : eval_sec ctx1 inferent_example
+  assert (Heval1 : eval_sec ctx1 interferent_example
                             ((ctx1 sv$+ ("x", 0)) s$+ ("x", Secret))).
   { apply EvalSecAssign with (a := 0) (level := Secret).
     - unfold ctx1, sec_val_of; simpl.
@@ -385,7 +385,7 @@ Proof.
     - reflexivity.
   }
 
-  assert (Heval2 : eval_sec ctx2 inferent_example
+  assert (Heval2 : eval_sec ctx2 interferent_example
                             ((ctx2 sv$+ ("x", 0)) s$+ ("x", Public))).
   { apply EvalSecAssign with (a := 0) (level := Public).
     - unfold ctx2, sec_val_of; simpl.

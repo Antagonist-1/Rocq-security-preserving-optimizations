@@ -84,7 +84,7 @@ Definition non_interference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
 
 
 
-(* A secure program is defined as a non-inferent program *)
+(* A secure program is defined as a non-interferent program *)
 Definition is_secure_pgm (pgm: program) (secrets: sec_env): Prop :=
   exists secrets',
     non_interference secrets (cmd_of pgm) secrets'.
