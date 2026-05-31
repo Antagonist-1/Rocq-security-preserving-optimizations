@@ -64,7 +64,7 @@ Definition join_sec_env (se1 se2 : sec_env) : sec_env :=
   Compute the security level of an expression, given a security environment.
    Using join_sec to combine the security levels of subexpressions.
  *)
-Fixpoint interp_sec (e : expr) (se : sec_env) {struct e} : sec_level :=
+Fixpoint interp_sec (e : expr) (se : sec_env)  : sec_level :=
   match e with
   | Const _ => Public
   | Var x => sec_lookup se x

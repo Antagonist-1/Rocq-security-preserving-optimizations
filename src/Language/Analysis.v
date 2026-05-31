@@ -47,7 +47,7 @@ bound number of variables.*)
 (* Formula: live_in = live_out + vars used in command - vars overwritten in cmd *)
 
 (*More details about formula: https://cs420.epfl.ch/c/06_dataflow.html*)
-Fixpoint liveness (c: cmd) (out: var_set) {struct c}: var_set :=
+Fixpoint liveness (c: cmd) (out: var_set): var_set :=
   match c with
   | Skip => out
   | Assign x e =>

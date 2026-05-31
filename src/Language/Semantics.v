@@ -41,7 +41,7 @@ Definition interp_binop (b: BinopName) (n1 n2: nat) :=
   | Modulo => Nat.modulo n1 n2
   end.
 
-Fixpoint interp_arith (e: expr) (v: valuation) {struct e}: nat :=
+Fixpoint interp_arith (e: expr) (v: valuation): nat :=
   match e with
   | Const n => n
   | Var x => match v $? x with Some a => a | None => 0 end
