@@ -144,25 +144,19 @@ Proof.
 Qed.
 
 (* a Secret lookup implies set membership *)
-Lemma lookup_simpl_sec_1 : forall se x,
-  sec_lookup se x = Secret ->
+Lemma lookup_simpl_sec : forall se x,
+  sec_lookup se x = Secret <->
   VarSet.In x se.
 Proof.
-  intros se x Hsecret.
-  apply mem_lookup_simpl_sec in Hsecret.
-  apply VarSet.mem_spec.
-  exact Hsecret.
-Qed.
-
-(* set membership implies a Secret lookup *)
-Lemma lookup_simpl_sec_2 : forall se x,
-  VarSet.In x se ->
-  sec_lookup se x = Secret.
-Proof.
-  intros se x Hin.
-  apply mem_lookup_simpl_sec.
-  apply VarSet.mem_spec.
-  exact Hin.
+  split.
+  - intros Hsecret.
+    apply mem_lookup_simpl_sec in Hsecret.
+    apply VarSet.mem_spec.
+    exact Hsecret.
+  - intros Hin.
+    apply mem_lookup_simpl_sec.
+    apply VarSet.mem_spec.
+    exact Hin.
 Qed.
 
 
