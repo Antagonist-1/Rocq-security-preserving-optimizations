@@ -61,6 +61,13 @@ Fixpoint secure_DSE_helper (c: cmd) (out: var_set) (secrets: sec_env): cmd :=
       While e body
   end.
 
-  (* wrapper for Secure Dead Store Elimination*)
+(* Core secure DSE pass: eliminate only assignments that are dead and
+   statically public, before a later cleanup pass removes any leftover skips. *)
+Definition opt_secure_DSE_core (pgm: program) (secrets: sec_env) : program :=
+  (secure_DSE_helper (cmd_of pgm) (protected_out pgm secrets) secrets,
+   output_of pgm).
+
+(* Full secure DSE optimization: run the core pass, then simplify the
+   resulting command by removing skips introduced during elimination. *)
 Definition opt_secure_DSE (pgm: program) (secrets: sec_env): program :=
-  (opt_unskip_cmd (secure_DSE_helper (cmd_of pgm) (protected_out pgm secrets) secrets), output_of pgm).
+  (opt_unskip_cmd (cmd_of (opt_secure_DSE_core pgm secrets)), output_of pgm).

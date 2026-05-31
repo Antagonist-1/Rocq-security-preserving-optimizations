@@ -3,7 +3,6 @@ Require Import VarSets.
 Require Import Language.Main.
 Require Import Language.Analysis.
 Require Import Language.Optimizations.Secure.DSE.
-Require Import Proofs.secure_DSE.Defs.
 Require Import Proofs.secure_DSE.SecretPreservation.
 Require Import Proofs.VarSetAgreement.
 Require Import Proofs.EvalEquivalence.

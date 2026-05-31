@@ -26,7 +26,6 @@ src/Proofs/EvalEquivalence.v
 src/Proofs/Noninference.v
 src/Proofs/NoninferenceSec.v
 src/Proofs/SecEnvSubtyping.v
-src/Proofs/secure_DSE/Defs.v
 src/Proofs/secure_DSE/SecretPreservation.v
 src/Proofs/secure_DSE/Soundness.v
 src/Proofs/secure_DSE/Noninference.v
