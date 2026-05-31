@@ -31,7 +31,6 @@ rocq:
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/Noninference.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/NoninferenceSec.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/SecEnvSubtyping.v
-	$(ROCQC) $(ROCQFLAGS) src/Proofs/secure_DSE/Defs.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/secure_DSE/SecretPreservation.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/secure_DSE/Soundness.v
 	$(ROCQC) $(ROCQFLAGS) src/Proofs/secure_DSE/Noninference.v
