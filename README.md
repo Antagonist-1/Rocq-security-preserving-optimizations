@@ -10,7 +10,7 @@ The two main security goals are:
 
 - preserving deliberate sensitive-memory clears, so an optimizer cannot remove
   security-relevant assignments only because they are functionally dead;
-- preserving non-inference-style constant-time behavior, so observable traces
+- preserving non-interference-style constant-time behavior, so observable traces
   remain independent of secret inputs.
 
 ## Build
@@ -74,7 +74,7 @@ src/
 ### Proofs And Examples
 
 - `src/Proofs/` contains the proof development for semantic equivalence,
-  non-inference, security environment reasoning, liveness analysis, secure DSE,
+  non-interference, security environment reasoning, liveness analysis, secure DSE,
   unsecure DSE, and `unskip`.
 - `src/Examples/` contains executable examples and checks for traces, program
   security, DSE behavior, and security units.

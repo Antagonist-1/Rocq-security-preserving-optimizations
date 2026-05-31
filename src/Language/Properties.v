@@ -75,7 +75,7 @@ Inductive ct_cmd : sec_env -> cmd -> sec_env -> Prop :=
 (* If two valuations agree on public data, then running the same program on them
 should produce the same trace.
  *)
-Definition non_inference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
+Definition non_interference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
   forall v1 v2 t_in final_v1 final_v2 trace1 trace2,
     agree_on_public se v1 v2 ->
     eval_trace (v1, t_in) c (final_v1, trace1) ->
@@ -84,10 +84,10 @@ Definition non_inference (se: sec_env) (c: cmd) (se_out: sec_env) : Prop :=
 
 
 
-(* A secure program is defined as a non-inferent program *)
+(* A secure program is defined as a non-interferent program *)
 Definition is_secure_pgm (pgm: program) (secrets: sec_env): Prop :=
   exists secrets',
-    non_inference secrets (cmd_of pgm) secrets'.
+    non_interference secrets (cmd_of pgm) secrets'.
 
 
 (* A secure optimization does not change the values and sec_level of secrets*)

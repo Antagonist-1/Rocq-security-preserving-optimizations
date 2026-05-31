@@ -65,12 +65,12 @@ Proof.
   unfold join_sec_env in *. VarSetDecide.fsetdec.
 Qed.
 
-(* Cmov doesn't create a trace event. We can prove its non_inference property*)
-Lemma cmov_non_inference : forall se x cond e1 e2 level,
+(* Cmov doesn't create a trace event. We can prove its non_interference property*)
+Lemma cmov_non_interference : forall se x cond e1 e2 level,
   join_sec (interp_sec cond se) (join_sec (interp_sec e1 se) (interp_sec e2 se)) = level ->
-  non_inference se (Cmov x cond e1 e2) (update_sec se x level).
+  non_interference se (Cmov x cond e1 e2) (update_sec se x level).
 Proof.
-  unfold non_inference.
+  unfold non_interference.
   Ltac resolve_cmov_maps :=
     unfold agree_on_public, sec_lookup in *; intros param Hparam;
     autorewrite with core in *; cbn in *.
@@ -94,10 +94,10 @@ Proof.
 Qed.
 
 (* A program that is constant time according to our definition should satisfy
-non-inference. *) 
+non-interference. *) 
 Theorem ct_cmd_soundness : forall se c se_out,
   ct_cmd se c se_out ->
-  non_inference se c se_out.
+  non_interference se c se_out.
 Proof.
   Ltac invert_evals :=
     inversion Heval1; inversion Heval2; subst.
@@ -108,7 +108,7 @@ Proof.
 
 
   intros se c se_out Hct.
-  unfold non_inference.
+  unfold non_interference.
   induction Hct;
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Heval1 Heval2.
   - (* Skip*)
@@ -134,7 +134,7 @@ Proof.
         * rewrite VarSet.add_spec in Hparam.
           auto.
   - (* Cmov*)
-    eapply cmov_non_inference; eauto.
+    eapply cmov_non_interference; eauto.
   - (* Sequence *)
     (* Pipeline security properties directly from c1 into c2. *)
     invert_evals. destruct ctx1 as [v1' t1'], ctx3 as [v2' t2'].

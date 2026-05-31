@@ -72,7 +72,7 @@ Proof.
   simpl in *.
   exists (VarSet.union secrets
     (vars_in_cmd (secure_DSE_helper c (VarSet.union out (sec_post c secrets)) secrets))).
-  unfold non_inference in *.
+  unfold non_interference in *.
   intros v1 v2 t_in final_v1 final_v2 trace1 trace2 Hagree Hopt_eval1 Hopt_eval2.
 
   pose proof (opt_secure_DSE_helper_trace_complete _ _ _ _ _ Hopt_eval1)
